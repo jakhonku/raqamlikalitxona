@@ -419,38 +419,43 @@ function App() {
 
 function QRScanner({ onScan }) {
   useEffect(() => {
-    // High-level scanner is more stable for cross-browser
-    const scanner = new Html5QrcodeScanner(
-      "reader",
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        videoConstraints: { facingMode: "environment" }, // Orqa kamerani tanlash
-        rememberLastUsedCamera: true
-      },
-      false
-    );
+    const html5QrCode = new Html5Qrcode("reader");
+    
+    const startScanner = async () => {
+      try {
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 20, qrbox: { width: 220, height: 220 } },
+          (decodedText) => {
+            html5QrCode.stop().then(() => onScan(decodedText)).catch(() => {});
+          },
+          undefined
+        );
+      } catch (err) {
+        // Fallback to user camera if environment fails
+        html5QrCode.start(
+          { facingMode: "user" },
+          { fps: 20, qrbox: { width: 220, height: 220 } },
+          (decodedText) => {
+            html5QrCode.stop().then(() => onScan(decodedText)).catch(() => {});
+          },
+          undefined
+        ).catch(innerErr => console.error("Scanner error", innerErr));
+      }
+    };
 
-    scanner.render(
-      (decodedText) => {
-        scanner.clear().then(() => {
-          onScan(decodedText);
-        });
-      },
-      (err) => { /* ignore repeated errors */ }
-    );
+    startScanner();
 
     return () => {
-      scanner.clear().catch(e => console.warn("Scanner clear failed", e));
+      if (html5QrCode.isScanning) {
+        html5QrCode.stop().catch(err => console.warn(err));
+      }
     };
   }, [onScan]);
 
   return (
     <div style={{ marginBottom: 15 }}>
-      <div id="reader" style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}></div>
-      <p style={{ fontSize: '11px', color: '#6b7280', textAlign: 'center', marginTop: 5 }}>
-        Kamera yoqilmoqda, iltimos ruxsat bering...
-      </p>
+      <div id="reader" style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #d1d5db', background: '#000' }}></div>
     </div>
   );
 }
