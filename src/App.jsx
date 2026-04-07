@@ -331,13 +331,14 @@ function App() {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Xonani band qilish</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="room-id-circle">{selectedRoom}</div>
+                <div>
+                   <h2 style={{ fontSize: '18px', lineHeight: 1 }}>Xonani band qilish</h2>
+                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 4 }}>Barcha ma'lumotlarni tekshiring</p>
+                </div>
+              </div>
               <button onClick={closeBtn} className="icon-btn"><X size={24} /></button>
-            </div>
-
-            <div className="room-preview-card">
-              <img src="/room-preview.png" alt="Xona ko'rinishi" className="room-preview-img" />
-              <div className="room-preview-badge">{selectedRoom}-xona</div>
             </div>
 
             <div className="form-group">

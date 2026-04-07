@@ -97,11 +97,8 @@ body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translate(-50%, 100px); background: #1f2937; color: white; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 1000; width: max-content; max-width: 90%; }
 .toast.show { transform: translate(-50%, 0); }
 
-/* Room Preview Card */
-.room-preview-card { position: relative; width: 100%; height: 140px; border-radius: 12px; overflow: hidden; margin-bottom: 20px; border: 1px solid var(--border-color); }
-.room-preview-img { width: 100%; height: 100%; object-fit: cover; filter: brightness(0.9); transition: transform 0.3s; }
-.room-preview-badge { position: absolute; bottom: 12px; left: 12px; background: rgba(30, 64, 175, 0.9); color: white; padding: 4px 12px; border-radius: 6px; font-weight: 700; font-size: 14px; backdrop-filter: blur(4px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-.room-preview-card:hover .room-preview-img { transform: scale(1.05); }
+/* Room Layout Indicators */
+.room-id-circle { width: 48px; height: 48px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; box-shadow: 0 4px 6px rgba(30, 64, 175, 0.2); flex-shrink: 0; }
 
 /* Responsive Media Queries */
 @media (max-width: 768px) {
@@ -121,12 +118,12 @@ body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color
   
   .badge { padding: 3px 6px; font-size: 10px; }
   
-  .modal { padding: 25px 20px 40px 20px; border-radius: 20px 20px 0 0; position: fixed; bottom: 0; left: 0; right: 0; max-width: 100%; border: 1px solid var(--border-color); min-height: 50vh; display: flex; flex-direction: column; }
+  .modal { padding: 25px 20px 40px 20px; border-radius: 20px 20px 0 0; position: fixed; bottom: 0; left: 0; right: 0; max-width: 100%; border: 1px solid var(--border-color); min-height: 400px; display: flex; flex-direction: column; overflow: visible; }
   .modal-overlay { align-items: flex-end; padding: 0; }
   
   .btn-sm { padding: 8px 10px; font-size: 12px; }
   
-  .suggestions { bottom: 100%; top: auto; margin-bottom: 4px; } /* On mobile, show suggestions ABOVE the input to avoid button overlap */
+  .suggestions { bottom: auto; top: 100%; margin-top: 4px; z-index: 1001; } 
 }
 
 @media (max-width: 480px) {
