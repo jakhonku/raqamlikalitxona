@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ConfigProvider, Layout, Menu, Input, Table, Tag, Button, 
-  Modal, Card, Row, Col, Statistic, Select, InputNumber, 
+  Modal, Card, Row, Col, Statistic, Select, InputNumber, Radio,
   message, Popconfirm, Divider, Progress, Empty, Upload, Result, Collapse, Badge, Space
 } from 'antd';
 import { 
@@ -11,7 +11,7 @@ import {
   CalendarOutlined, TrophyOutlined, PlusOutlined, ApartmentOutlined, 
   FileExcelOutlined, UploadOutlined, ArrowUpOutlined, ArrowDownOutlined,
   WarningOutlined, RestOutlined, HistoryOutlined, ClockCircleOutlined, LockOutlined, StopOutlined,
-  ScanOutlined, InfoCircleOutlined, StarFilled, AlertOutlined
+  ScanOutlined, InfoCircleOutlined, StarFilled, AlertOutlined, HourglassOutlined
 } from '@ant-design/icons';
 import { Html5Qrcode } from 'html5-qrcode';
 import * as XLSX from 'xlsx';
@@ -28,10 +28,11 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [extendModalOpen, setExtendModalOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [occupant, setOccupant] = useState(null);
   const [role, setRole] = useState('teacher');
-  const [duration, setDuration] = useState(2);
+  const [duration, setDuration] = useState(1);
   const [actionLoading, setActionLoading] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [view, setView] = useState('list');
@@ -114,10 +115,20 @@ function App() {
   const isOverdue = (roomTime, roomDuration) => {
     if (!roomTime || !roomDuration || roomDuration === '-') return false;
     const [h, m] = roomTime.split(':').map(Number);
-    const durHours = parseInt(roomDuration);
+    const durHours = parseFloat(roomDuration);
     const takeDate = new Date(); takeDate.setHours(h, m, 0, 0);
     const expireDate = new Date(takeDate.getTime() + durHours * 60 * 60 * 1000);
     return new Date() > expireDate;
+  };
+
+  const getRemainingMinutes = (roomTime, roomDuration) => {
+    if (!roomTime || !roomDuration || roomDuration === '-') return 999;
+    const [h, m] = roomTime.split(':').map(Number);
+    const durHours = parseFloat(roomDuration);
+    const takeDate = new Date(); takeDate.setHours(h, m, 0, 0);
+    const expireDate = new Date(takeDate.getTime() + durHours * 60 * 60 * 1000);
+    const diffMs = expireDate - new Date();
+    return Math.floor(diffMs / (1000 * 60));
   };
 
   const addUser = async () => {
@@ -137,29 +148,6 @@ function App() {
   const deleteUser = async (id) => { await supabase.from('users').delete().eq('id', id); fetchUsers(); message.success("O'chirildi"); };
   const deleteRoom = async (id) => { await supabase.from('rooms').delete().eq('id', id); fetchRooms(); message.success("O'chirildi"); };
 
-  const importRoomsExcel = (f) => {
-    const r = new FileReader();
-    r.onload = async (e) => {
-      const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).Sheets[XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).SheetNames[0]]);
-      const ids = json.map(row => String(row[Object.keys(row).find(k => k.toLowerCase().includes('xona') || k.toLowerCase().includes('id'))] || '').trim()).filter(id => id);
-      await supabase.from('rooms').insert(ids.map(id => ({ id, status: 'free' })));
-      message.success("Yuklandi!"); fetchRooms();
-    };
-    r.readAsArrayBuffer(f); return false;
-  };
-
-  const importUsersExcel = (f) => {
-    const r = new FileReader();
-    r.onload = async (e) => {
-      const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).Sheets[XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).SheetNames[0]]);
-      const names = json.map(row => String(row[Object.keys(row).find(k => k.toLowerCase().includes('ism') || k.toLowerCase().includes('fish'))] || '').trim()).filter(n => n);
-      let m = 1000; users.forEach(u => { if (u.id.startsWith('RK-')) { const n = parseInt(u.id.split('-')[1]); if (n > m) m = n; } });
-      await supabase.from('users').insert(names.map((name, i) => ({ id: `RK-${m + i + 1}`, name, role: newUserRole })));
-      message.success("Yuklandi!"); fetchUsers();
-    };
-    r.readAsArrayBuffer(f); return false;
-  };
-
   const confirmIssue = async () => {
     if (!occupant || !selectedRoom) return;
     setActionLoading(true);
@@ -168,6 +156,18 @@ function App() {
     await supabase.from('rooms').update({ status: 'occupied', occupant, time: t, duration: durStr }).eq('id', selectedRoom);
     await supabase.from('logs').insert([{ room_id: String(selectedRoom), occupant_name: occupant, action: 'Olingan', duration: durStr }]);
     message.success("Kalit berildi!"); setModalOpen(false); setActionLoading(false);
+  };
+
+  const confirmExtend = async () => {
+    const room = rooms.find(r => r.id === selectedRoom);
+    if (!room) return;
+    const currentDur = parseFloat(room.duration);
+    if (currentDur + duration > 2) return message.error("Umumiy vaqt 2 soatdan oshishi mumkin emas!");
+    setActionLoading(true);
+    const newDur = `${currentDur + duration} soat`;
+    await supabase.from('rooms').update({ duration: newDur }).eq('id', selectedRoom);
+    await supabase.from('logs').insert([{ room_id: String(selectedRoom), occupant_name: room.occupant, action: 'Vaqt uzaytirildi', duration: `${duration} soat qo'shildi` }]);
+    message.success("Vaqt uzaytirildi!"); setExtendModalOpen(false); setActionLoading(false);
   };
 
   const receiveKey = async (roomId, o) => {
@@ -198,54 +198,50 @@ function App() {
 
         <Content className="main-container animate-fade-in">
           {view === 'list' && (
-             <>
-               <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-                 <Col xs={24} md={12}><Input size="large" placeholder="Qidirish..." prefix={<SearchOutlined />} value={search} onChange={(e) => setSearch(e.target.value.toLowerCase())} /></Col>
+             <div className="glass-card table-glass">
+               <Row gutter={[16, 16]} style={{ padding: 20 }}>
+                 <Col xs={24} md={12}><Input size="large" placeholder="Qidirish raqam yoki ism..." prefix={<SearchOutlined />} value={search} onChange={(e) => setSearch(e.target.value.toLowerCase())} /></Col>
                  <Col xs={24} md={12} style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}><Button size="large" icon={<ReloadOutlined />} onClick={fetchInitialData} loading={loading} /></Col>
                </Row>
-               <div className="glass-card table-glass">
-                 <Table dataSource={rooms.filter(r => String(r.id).includes(search) || (r.occupant && r.occupant.toLowerCase().includes(search)))} rowKey="id" pagination={{pageSize:10}} rowClassName={(r) => r.status === 'occupied' && isOverdue(r.time, r.duration) ? 'overdue-row' : ''} columns={[
-                   { title: 'Xona', dataIndex: 'id', width: '10%', render: (t) => <strong>{t}</strong> },
-                   { title: 'Holati', dataIndex: 'status', width: '10%', render: (s) => s==='free' ? <Tag color="success">BO'SH</Tag> : <Badge status="error" text="BAND" /> },
-                   { title: "Mas'ul shaxs", dataIndex: 'occupant', width: '30%' },
-                   { title: 'Vaqt / Muddat', width: '30%', render: (_, r) => {
-                     if (r.status !== 'occupied') return "-";
-                     const [h, m] = r.time.split(':').map(Number);
-                     const freeTime = r.duration !== '-' ? new Date(new Date().setHours(h + parseInt(r.duration), m, 0, 0)) : null;
-                     const freeTimeStr = freeTime ? `${String(freeTime.getHours()).padStart(2, '0')}:${String(freeTime.getMinutes()).padStart(2, '0')}` : null;
-                     
-                     return (
-                       <div style={{fontSize: 13}}>
-                         <div><ClockCircleOutlined /> <strong>{r.time}</strong> da olindi</div>
-                         {r.duration !== '-' && (
-                           <div style={{marginTop:4, color: isOverdue(r.time, r.duration) ? '#dc2626' : '#1e40af'}}>
-                             <CalendarOutlined /> Topshirish: <strong>{freeTimeStr}</strong> ({r.duration})
-                             {isOverdue(r.time, r.duration) && <Tag color="error" style={{marginLeft:8}}>KECHIKDI!</Tag>}
-                           </div>
-                         )}
-                         {r.duration === '-' && <div style={{marginTop:4, color: '#64748b'}}><InfoCircleOutlined /> Cheksiz muddat</div>}
-                       </div>
-                     );
-                   }},
-                   { title: 'Boshqaruv', width: '20%', render: (_, r) => r.status==='free' ? <Button type="primary" onClick={() => { setSelectedRoom(r.id); setModalOpen(true); setQrOpen(false); setOccupant(null); }}>Band qilish</Button> : <Button danger onClick={() => receiveKey(r.id, r.occupant)}>Bo'shatish</Button> }
-                 ]} />
-               </div>
-             </>
+               <Table dataSource={rooms.filter(r => String(r.id).includes(search) || (r.occupant && r.occupant.toLowerCase().includes(search)))} rowKey="id" pagination={{pageSize:10}} rowClassName={(r) => r.status === 'occupied' && isOverdue(r.time, r.duration) ? 'overdue-row' : ''} columns={[
+                 { title: 'Xona', dataIndex: 'id', width: '10%', render: (t) => <strong>{t}</strong> },
+                 { title: 'Holati', dataIndex: 'status', width: '10%', render: (s) => s==='free' ? <Tag color="success">BO'SH</Tag> : <Badge status="error" text="BAND" /> },
+                 { title: "Mas'ul shaxs", dataIndex: 'occupant', width: '25%' },
+                 { title: 'Vaqt / Muddat', width: '30%', render: (_, r) => {
+                   if (r.status !== 'occupied') return "-";
+                   const [h, m] = r.time.split(':').map(Number);
+                   const freeTime = r.duration !== '-' ? new Date(new Date().setHours(h + parseInt(r.duration), m + (parseFloat(r.duration)%1*60), 0, 0)) : null;
+                   const freeTimeStr = freeTime ? `${String(freeTime.getHours()).padStart(2, '0')}:${String(freeTime.getMinutes()).padStart(2, '0')}` : null;
+                   return (
+                     <div style={{fontSize: 13}}>
+                       <div><ClockCircleOutlined /> <strong>{r.time}</strong> da olindi</div>
+                       {r.duration !== '-' && <div style={{marginTop:4, color: isOverdue(r.time, r.duration) ? '#dc2626' : '#1e40af'}}><CalendarOutlined /> Topshirish: <strong>{freeTimeStr}</strong> ({r.duration}) {isOverdue(r.time, r.duration) && <Tag color="error" style={{marginLeft:4}}>KECHIKDI!</Tag>}</div>}
+                       {r.duration === '-' && <div style={{marginTop:4, color: '#64748b'}}><InfoCircleOutlined /> Cheksiz</div>}
+                     </div>
+                   );
+                 }},
+                 { title: 'Boshqaruv', width: '25%', render: (_, r) => r.status==='free' ? <Button type="primary" onClick={() => { setSelectedRoom(r.id); setModalOpen(true); setQrOpen(false); setOccupant(null); }}>Band qilish</Button> : (
+                   <Space>
+                     <Button danger onClick={() => receiveKey(r.id, r.occupant)}>Bo'shatish</Button>
+                     {r.duration !== '-' && !isOverdue(r.time, r.duration) && getRemainingMinutes(r.time, r.duration) <= 5 && (
+                        <Button icon={<HourglassOutlined />} type="primary" ghost onClick={() => { setSelectedRoom(r.id); setExtendModalOpen(true); }}>Uzaytirish</Button>
+                     )}
+                   </Space>
+                 )}
+               ]} />
+             </div>
           )}
 
           {view === 'rooms_manage' && (
             <Card className="glass-card" title="Xonalar boshqaruvi">
-              <Row gutter={24}><Col xs={24} md={12}><h4>Yakka qo'shish</h4><Row gutter={8} style={{marginTop:12}}><Col span={16}><Input placeholder="Xona raqami" size="large" value={newRoomId} onChange={e => setNewRoomId(e.target.value)} /></Col><Col span={8}><Button type="primary" size="large" block onClick={addRoom}>Qo'shish</Button></Col></Row></Col><Col xs={24} md={12}><h4>Excel yuklash</h4><Upload beforeUpload={importRoomsExcel} showUploadList={false} style={{marginTop:12}}><Button size="large" icon={<UploadOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></Col></Row>
-              <Divider /><Table dataSource={rooms} rowKey="id" columns={[{ title: 'Xona raqami', dataIndex: 'id' }, { title: 'Amal', render: (_, r) => <Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteRoom(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm> }]} pagination={{pageSize:10}} />
+              <Row gutter={24}><Col xs={24} md={12}><h4>Yakka qo'shish</h4><Row gutter={8} style={{marginTop:12}}><Col span={16}><Input placeholder="Xona raqami" size="large" value={newRoomId} onChange={e => setNewRoomId(e.target.value)} /></Col><Col span={8}><Button type="primary" size="large" block onClick={addRoom}>Qo'shish</Button></Col></Row></Col><Col xs={24} md={12}><h4>Excel yuklash</h4><Upload beforeUpload={(f)=>{const r=new FileReader();r.onload=async(e)=>{const json=XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result),{type:'array'}).Sheets[XLSX.read(new Uint8Array(e.target.result),{type:'array'}).SheetNames[0]]);const ids=json.map(row=>String(row[Object.keys(row).find(k=>k.toLowerCase().includes('xona')||k.toLowerCase().includes('id'))]||'').trim()).filter(id=>id);await supabase.from('rooms').insert(ids.map(id=>({id,status:'free'})));message.success("Yuklandi!");fetchRooms();};r.readAsArrayBuffer(f);return false;}} showUploadList={false} style={{marginTop:12}}><Button size="large" icon={<UploadOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></Col></Row>
+              <Divider /><Table dataSource={rooms} rowKey="id" columns={[{ title: 'Xona raqami', dataIndex: 'id' }, { title: 'Boshqaruv', render: (_, r) => <Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteRoom(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm> }]} pagination={{pageSize:10}} />
             </Card>
           )}
 
           {view === 'users' && (
             <Card className="glass-card" title="Foydalanuvchilar boshqaruvi">
-              <Row gutter={24}>
-                <Col xs={24} md={12}><h4>Yakka qo'shish</h4><div style={{marginTop:12}}><Input placeholder="F.I.SH" size="large" value={newUserName} onChange={e => setNewUserName(e.target.value)} style={{marginBottom:10}} /><Select size="large" style={{width:'100%', marginBottom:10}} value={newUserRole} onChange={setNewUserRole} options={[{label:'Oqituvchi',value:'teacher'},{label:'Talaba',value:'student'},{label:'Hodim',value:'staff'}]} /><Button type="primary" size="large" block onClick={addUser}>Qo'shish</Button></div></Col>
-                <Col xs={24} md={12}><h4>Excel yuklash</h4><div style={{marginTop:12}}><Select size="large" style={{width:150, marginRight:10}} value={newUserRole} onChange={setNewUserRole} options={[{label:'Oqituvchi',value:'teacher'},{label:'Talaba',value:'student'},{label:'Hodim',value:'staff'}]} /><Upload beforeUpload={importUsersExcel} showUploadList={false}><Button size="large" icon={<FileExcelOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></div></Col>
-              </Row>
+              <Row gutter={24}><Col xs={24} md={12}><h4>Yakka qo'shish</h4><div style={{marginTop:12}}><Input placeholder="F.I.SH" size="large" value={newUserName} onChange={e => setNewUserName(e.target.value)} style={{marginBottom:10}} /><Select size="large" style={{width:'100%', marginBottom:10}} value={newUserRole} onChange={setNewUserRole} options={[{label:'Oqituvchi',value:'teacher'},{label:'Talaba',value:'student'},{label:'Hodim',value:'staff'}]} /><Button type="primary" size="large" block onClick={addUser}>Qo'shish</Button></div></Col><Col xs={24} md={12}><h4>Excel yuklash</h4><div style={{marginTop:12}}><Select size="large" style={{width:150, marginRight:10}} value={newUserRole} onChange={setNewUserRole} options={[{label:'Oqituvchi',value:'teacher'},{label:'Talaba',value:'student'},{label:'Hodim',value:'staff'}]} /><Upload beforeUpload={(f)=>{const r=new FileReader();r.onload=async(e)=>{const json=XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result),{type:'array'}).Sheets[XLSX.read(new Uint8Array(e.target.result),{type:'array'}).SheetNames[0]]);const names=json.map(row=>String(row[Object.keys(row).find(k=>k.toLowerCase().includes('ism')||k.toLowerCase().includes('fish'))]||'').trim()).filter(n=>n);let m=1000;users.forEach(u=>{if(u.id.startsWith('RK-')){const n=parseInt(u.id.split('-')[1]);if(n>m)m=n;}});await supabase.from('users').insert(names.map((name,i)=>({id:`RK-${m+i+1}`,name,role:newUserRole})));message.success("Yuklandi!");fetchUsers();};r.readAsArrayBuffer(f);return false;}} showUploadList={false}><Button size="large" icon={<FileExcelOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></div></Col></Row>
               <Divider /><Table dataSource={users} rowKey="id" columns={[{ title: 'ID', dataIndex: 'id', width: '15%', render: (id) => <Tag color="blue"><strong>{id}</strong></Tag> }, { title: 'F.I.SH', dataIndex: 'name' }, { title: 'Lavozimi', dataIndex: 'role', render: (r) => <Tag color={r==='teacher'?'gold':r==='student'?'cyan':'purple'}>{r==='teacher'?'O\'qituvchi':r==='student'?'Talaba':'Hodim'}</Tag> }, { title: 'Boshqaruv', width: '10%', render: (_, r) => <Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm> }]} pagination={{pageSize:10}} />
             </Card>
           )}
@@ -258,12 +254,32 @@ function App() {
               <div style={{marginTop:10}}>
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:12, alignItems:'center'}}><label style={{fontWeight:500}}>Tanlang</label><Button type="link" icon={<CameraOutlined />} onClick={() => setQrOpen(true)}>QR</Button></div>
                 <Select showSearch size="large" style={{ width: '100%', marginBottom: 16 }} placeholder="Tanlang..." value={occupant} onChange={(val) => { setOccupant(val); if(val.includes('Talaba')) setRole('student'); else setRole('staff'); }} options={users.map(u => ({ label: `${u.name} (${u.role==='teacher'?'O\'qituvchi':u.role==='student'?'Talaba':'Hodim'})`, value: `${u.name} (${u.role==='teacher'?'O\'qituvchi':u.role==='student'?'Talaba':'Hodim'})` }))} />
-                {(role === 'student' || (occupant && occupant.includes('(Talaba)'))) && <div style={{marginBottom:16}}><label style={{display:'block', marginBottom:8}}>Muddati (soat)</label><InputNumber min={1} max={24} size="large" value={duration} onChange={setDuration} style={{ width: '100%' }} /></div>}
+                {(role === 'student' || (occupant && occupant.includes('(Talaba)'))) && (
+                  <div style={{marginBottom:16}}>
+                    <label style={{display:'block', marginBottom:8}}>Muddati:</label>
+                    <Radio.Group value={duration} onChange={e => setDuration(e.target.value)} buttonStyle="solid" size="large">
+                      <Radio.Button value={0.5}>30 daqiqa</Radio.Button>
+                      <Radio.Button value={1}>1 soat</Radio.Button>
+                      <Radio.Button value={1.5}>1.5 soat</Radio.Button>
+                      <Radio.Button value={2}>2 soat</Radio.Button>
+                    </Radio.Group>
+                  </div>
+                )}
                 <Button type="primary" size="large" block loading={actionLoading} onClick={confirmIssue} style={{height:45, borderRadius:10}}>Tasdiqlash</Button>
               </div>
             ) : (
               <div className="qr-scanner-container"><QRScanner onScan={handleQRScan} /><Button block onClick={() => setQrOpen(false)} style={{marginTop:10}}>Orqaga</Button></div>
             )}
+        </Modal>
+
+        <Modal title="Vaqtni uzaytirish" open={extendModalOpen} onCancel={() => setExtendModalOpen(false)} footer={null} destroyOnClose>
+            <p>Xona {selectedRoom} uchun qo'shimcha vaqt tanlang:</p>
+            <Radio.Group value={duration} onChange={e => setDuration(e.target.value)} buttonStyle="solid" size="large" style={{marginBottom:20}}>
+              <Radio.Button value={0.5}>30 daqiqa</Radio.Button>
+              <Radio.Button value={1}>1 soat</Radio.Button>
+            </Radio.Group>
+            <Button type="primary" block size="large" onClick={confirmExtend} loading={actionLoading}>Uzaytirishni tasdiqlash</Button>
+            <p style={{marginTop:12, fontSize:12, color:'#64748b'}}>* Umumiy muddat 2 soatdan oshib ketmasligi kerak.</p>
         </Modal>
 
         <Modal title="Parol" open={passModalOpen} onCancel={() => setPassModalOpen(false)} onOk={clearLogs} okText="Tozalash"><Input.Password value={inputPass} onChange={e => setInputPass(e.target.value)} /></Modal>
