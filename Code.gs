@@ -6,18 +6,23 @@
 // Aks holda SHEET_ID ni quyidagiga kiritishingiz kerak.
 const SHEET_ID = 'BU_YERGA_GOOGLE_SHEET_ID_KIRITILADI';
 
+/**
+ * PERFORMANCE OPTIMIZATION:
+ * Spreadsheet ob'yektini keshlaymiz
+ */
+let cachedSS = null;
 function getSS() {
+  if (cachedSS) return cachedSS;
   try {
-    // Avval bog'langan jadvalni tekshiramiz
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    if (ss) return ss;
+    cachedSS = SpreadsheetApp.getActiveSpreadsheet();
+    if (cachedSS) return cachedSS;
   } catch (e) {}
   
-  // Agar bog'lanmagan bo'lsa, ID orqali ochamiz
   if (SHEET_ID && SHEET_ID !== 'BU_YERGA_GOOGLE_SHEET_ID_KIRITILADI') {
-    return SpreadsheetApp.openById(SHEET_ID);
+    cachedSS = SpreadsheetApp.openById(SHEET_ID);
+    return cachedSS;
   }
-  throw new Error("Spreadsheet topilmadi! Iltimos SHEET_ID ni Code.gs fayliga kiriting.");
+  throw new Error("Spreadsheet topilmadi!");
 }
 
 // JSON javob berish uchun yordamchi funksiya
@@ -38,7 +43,7 @@ function doGet(e) {
     } else if (action === 'getUsers') {
       return jsonResponse({ success: true, data: getUsersList() });
     } else {
-      // Barcha ma'lumotlarni beradi (action=getAll yoki boshqa)
+      // Barcha ma'lumotlarni beradi
       return jsonResponse({ 
         success: true, 
         data: {
@@ -80,18 +85,17 @@ function getRoomsData() {
   const sheet = ss.getSheetByName('Xonalar');
   if (!sheet) return [];
   
-  const data = sheet.getDataRange().getDisplayValues();
-  let rooms = [];
-  for (let i = 1; i < data.length; i++) {
-    rooms.push({
-      id: data[i][0].toString(),
-      status: data[i][1].toString(),
-      occupant: data[i][2] || null,
-      time: data[i][3] || null,
-      duration: data[i][4] || null
-    });
-  }
-  return rooms;
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+  const data = sheet.getRange(2, 1, lastRow - 1, 5).getDisplayValues();
+  
+  return data.map(row => ({
+    id: row[0],
+    status: row[1],
+    occupant: row[2] || null,
+    time: row[3] || null,
+    duration: row[4] || null
+  }));
 }
 
 function checkOutKey(roomId, occupantName, role = 'teacher', duration = null) {
@@ -178,9 +182,9 @@ function checkInKey(roomId) {
 function getUsersList() {
   const ss = getSS();
   const categories = [
-    { name: "O'qituvchilar", label: "O'qituvchi", idCol: 2 },
-    { name: "Talabalar", label: "Talaba", idCol: 2 },
-    { name: "Hodimlar", label: "Hodim", idCol: 2 }
+    { name: "O'qituvchilar", label: "O'qituvchi" },
+    { name: "Talabalar", label: "Talaba" },
+    { name: "Hodimlar", label: "Hodim" }
   ];
   let users = [];
   
@@ -188,13 +192,17 @@ function getUsersList() {
     try {
       const sheet = ss.getSheetByName(cat.name);
       if (sheet) {
-        const data = sheet.getDataRange().getValues();
-        for (let i = 1; i < data.length; i++) {
-          if (data[i][0]) {
-            let name = data[i][0].toString().trim();
-            let id = data[i][cat.idCol] ? data[i][cat.idCol].toString().trim() : "";
-            users.push({ name: name + ` (${cat.label})`, id: id });
-          }
+        const lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          const data = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+          data.forEach(row => {
+            if (row[0]) {
+              users.push({ 
+                name: row[0].toString().trim() + ` (${cat.label})`, 
+                id: row[2] ? row[2].toString().trim() : "" 
+              });
+            }
+          });
         }
       }
     } catch(e) {}
@@ -207,33 +215,37 @@ function getAnalytics() {
   const logsSheet = ss.getSheetByName('Loglar');
   if (!logsSheet) return { roomUsage: [], dailyUsage: [], userUsage: [], categoryUsage: [] };
   
-  const data = logsSheet.getDataRange().getValues();
+  const lastRow = logsSheet.getLastRow();
+  if (lastRow <= 1) return { roomUsage: [], dailyUsage: [], userUsage: [], categoryUsage: [] };
+
+  const startRow = Math.max(2, lastRow - 500);
+  const data = logsSheet.getRange(startRow, 1, (lastRow - startRow) + 1, 4).getValues();
+  
   let roomUsage = {};
   let dailyUsage = {};
   let userUsage = {};
   let categoryUsage = { "O'qituvchi": 0, "Talaba": 0, "Hodim": 0 };
   
-  for (let i = 1; i < data.length; i++) {
-    const roomId = data[i][0].toString();
-    const occupant = data[i][1].toString();
-    const action = data[i][2]; 
-    const dateStr = data[i][3].toString();
+  data.forEach(row => {
+    const roomId = row[0].toString();
+    const occupant = row[1].toString();
+    const action = row[2]; 
+    const dateStr = row[3].toString();
     
     if (action && action.toString().includes('Olingan')) {
       roomUsage[roomId] = (roomUsage[roomId] || 0) + 1;
       userUsage[occupant] = (userUsage[occupant] || 0) + 1;
       
-      // Category detection
       if (occupant.includes('(O\'qituvchi)')) categoryUsage["O'qituvchi"]++;
       else if (occupant.includes('(Talaba)')) categoryUsage["Talaba"]++;
       else if (occupant.includes('(Hodim)')) categoryUsage["Hodim"]++;
-
+      
       if (dateStr) {
         const day = dateStr.split(' ')[0];
         dailyUsage[day] = (dailyUsage[day] || 0) + 1;
       }
     }
-  }
+  });
   
   return {
     roomUsage: Object.keys(roomUsage).map(id => ({ id: id, count: roomUsage[id] })),
@@ -244,8 +256,7 @@ function getAnalytics() {
 }
 
 /**
- * AVTOMATIK ID YARATISH:
- * Jadvalda ism yozilganda unga avtomatik ravishda noyob (unique) ID generatsiya qiladi.
+ * AVTOMATIK ID YARATISH (Optimallashtirilgan):
  */
 function onEdit(e) {
   const sheet = e.source.getActiveSheet();
@@ -254,60 +265,52 @@ function onEdit(e) {
   const col = range.getColumn();
   const row = range.getRow();
   
-  // Faqat kerakli sahifalarda va 1-ustunda (FISH) ism yozilsa ishlaydi
   const sourceSheets = ["O'qituvchilar", "Talabalar", "Hodimlar"];
-  
   if (sourceSheets.includes(sheetName) && col === 1 && row > 1) {
     const name = range.getValue();
-    const idCell = sheet.getRange(row, 3); // 3-ustun (ID)
+    const idCell = sheet.getRange(row, 3);
     
-    // Agar ism yozilgan bo'lsa va ID hali yo'q bo'lsa
     if (name && !idCell.getValue()) {
-      const nextId = generateNextUID(e.source);
+      const nextId = getFastNextUID();
       idCell.setValue(nextId);
     }
   }
 }
 
-/**
- * Barcha jadvallardan o'tib, eng oxirgi (eng katta) ID ni topadi 
- * va keyingisini qaytaradi (Format: RK-1001).
- */
-function generateNextUID(ss) {
-  const sheets = ["O'qituvchilar", "Talabalar", "Hodimlar"];
-  let maxId = 1000; // 1001 dan boshlanadi
+function getFastNextUID() {
+  const props = PropertiesService.getScriptProperties();
+  let lastIdNum = parseInt(props.getProperty('LAST_ID_NUM'), 10);
   
-  sheets.forEach(name => {
-    try {
+  if (isNaN(lastIdNum)) {
+    lastIdNum = 1000;
+    const ss = getSS();
+    const sheets = ["O'qituvchilar", "Talabalar", "Hodimlar"];
+    sheets.forEach(name => {
       const s = ss.getSheetByName(name);
       if (s) {
-        const data = s.getDataRange().getValues();
+        const data = s.getRange("C:C").getValues();
         for (let i = 1; i < data.length; i++) {
-          const idValue = data[i][2]; // C ustun (ID)
-          if (idValue && typeof idValue === 'string' && idValue.startsWith("RK-")) {
-            const num = parseInt(idValue.split("-")[1], 10);
-            if (!isNaN(num) && num > maxId) {
-              maxId = num;
-            }
+          const val = data[i][0];
+          if (val && typeof val === 'string' && val.startsWith("RK-")) {
+            const num = parseInt(val.split("-")[1], 10);
+            if (!isNaN(num) && num > lastIdNum) lastIdNum = num;
           }
         }
       }
-    } catch(e) {}
-  });
+    });
+  }
   
-  const nextNum = maxId + 1;
+  const nextNum = lastIdNum + 1;
+  props.setProperty('LAST_ID_NUM', nextNum.toString());
   return "RK-" + nextNum;
 }
 
 /**
  * SOZLASH FUNKSIYASI:
- * Google Sheet'da barcha kerakli sahifalarni yaratadi.
- * Code.gs'da ushbu funksiyani bir marta ishga tushiring.
  */
 function setupSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. Xonalar sahifasi
   let rSheet = ss.getSheetByName("Xonalar");
   if (!rSheet) rSheet = ss.insertSheet("Xonalar");
   rSheet.clear();
@@ -319,7 +322,6 @@ function setupSheets() {
   rSheet.getRange("A1:E1").setFontWeight("bold").setBackground("#f0f0f0");
   rSheet.autoResizeColumns(1, 5);
   
-  // 2. Loglar sahifasi
   let lSheet = ss.getSheetByName("Loglar");
   if (!lSheet) lSheet = ss.insertSheet("Loglar");
   lSheet.clear();
@@ -327,33 +329,26 @@ function setupSheets() {
   lSheet.getRange("A1:E1").setFontWeight("bold").setBackground("#f0f0f0");
   lSheet.autoResizeColumns(1, 5);
 
-  // 3. O'qituvchilar
   let tSheet = ss.getSheetByName("O'qituvchilar");
   if (!tSheet) tSheet = ss.insertSheet("O'qituvchilar");
   tSheet.clear();
   tSheet.appendRow(["FISH", "Lavozimi", "ID"]);
   tSheet.appendRow(["Alisher Navoiy", "Professor", "RK-1001"]);
   tSheet.getRange("A1:C1").setFontWeight("bold");
-  tSheet.autoResizeColumns(1, 3);
   
-  // 4. Talabalar
   let sSheet = ss.getSheetByName("Talabalar");
   if (!sSheet) sSheet = ss.insertSheet("Talabalar");
   sSheet.clear();
   sSheet.appendRow(["FISH", "Yo'nalish", "ID"]);
   sSheet.appendRow(["Mirzo Ulugbek", "Astronomiya", "RK-1002"]);
   sSheet.getRange("A1:C1").setFontWeight("bold");
-  sSheet.autoResizeColumns(1, 3);
 
-  // 5. Hodimlar
   let hSheet = ss.getSheetByName("Hodimlar");
   if (!hSheet) hSheet = ss.insertSheet("Hodimlar");
   hSheet.clear();
   hSheet.appendRow(["FISH", "Lavozimi", "ID"]);
   hSheet.appendRow(["Abdulla Qodiriy", "Kutubxonachi", "RK-1003"]);
   hSheet.getRange("A1:C1").setFontWeight("bold");
-  hSheet.autoResizeColumns(1, 3);
 
-  Browser.msgBox("Tizim tayyor! ID generatsiya qilish uchun ism yozing (Format: RK-XXXX)");
+  Browser.msgBox("Tizim tayyor va optimallashdi!");
 }
-
