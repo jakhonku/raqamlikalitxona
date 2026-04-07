@@ -166,38 +166,28 @@ function checkInKey(roomId) {
 
 function getUsersList() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
+  const categories = [
+    { name: "O'qituvchilar", label: "O'qituvchi", idCol: 2 },
+    { name: "Talabalar", label: "Talaba", idCol: 2 },
+    { name: "Hodimlar", label: "Hodim", idCol: 2 }
+  ];
   let users = [];
   
-  // 1. O'qituvchilarni o'qish
-  try {
-    const tSheet = ss.getSheetByName("O'qituvchilar");
-    if (tSheet) {
-      const data = tSheet.getDataRange().getValues();
-      for (let i = 1; i < data.length; i++) {
-        if (data[i][0]) {
-          let name = data[i][0].toString().trim();
-          let id = data[i][2] ? data[i][2].toString().trim() : "";
-          users.push({ name: name + " (O'qituvchi)", id: id });
+  categories.forEach(cat => {
+    try {
+      const sheet = ss.getSheetByName(cat.name);
+      if (sheet) {
+        const data = sheet.getDataRange().getValues();
+        for (let i = 1; i < data.length; i++) {
+          if (data[i][0]) {
+            let name = data[i][0].toString().trim();
+            let id = data[i][cat.idCol] ? data[i][cat.idCol].toString().trim() : "";
+            users.push({ name: name + ` (${cat.label})`, id: id });
+          }
         }
       }
-    }
-  } catch(e) {}
-
-  // 2. Talabalarni o'qish
-  try {
-    const sSheet = ss.getSheetByName("Talabalar");
-    if (sSheet) {
-      const data = sSheet.getDataRange().getValues();
-      for (let i = 1; i < data.length; i++) {
-        if (data[i][0]) {
-          let name = data[i][0].toString().trim();
-          let id = data[i][2] ? data[i][2].toString().trim() : "";
-          users.push({ name: name + " (Talaba)", id: id });
-        }
-      }
-    }
-  } catch(e) {}
-  
+    } catch(e) {}
+  });
   return users;
 }
 
@@ -251,5 +241,11 @@ function yangiJadvallarniQurish() {
   const oldSheet = ss.getSheetByName("Foydalanuvchilar");
   if (oldSheet) ss.deleteSheet(oldSheet);
   
-  Browser.msgBox("O'qituvchilar va Talabalar jadvallari alohida qilib yaratildi!");
+  // 3. Hodimlar jadvali
+  let hSheet = ss.getSheetByName("Hodimlar");
+  if (!hSheet) hSheet = ss.insertSheet("Hodimlar");
+  hSheet.clear();
+  hSheet.appendRow(["FISH", "Lavozimi", "ID"]);
+
+  Browser.msgBox("O'qituvchilar, Talabalar va Hodimlar jadvallari yaratildi!");
 }
