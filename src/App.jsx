@@ -394,17 +394,26 @@ function QRScanner({ onScan }) {
   const scannerRef = useRef(null);
 
   useEffect(() => {
-    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
-    scanner.render(
+    const html5QrCode = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    html5QrCode.start(
+      { facingMode: "environment" }, 
+      config,
       (decodedText) => {
-        scanner.clear();
-        onScan(decodedText);
+        html5QrCode.stop().then(() => {
+          onScan(decodedText);
+        });
       },
-      (err) => { /* ignore repeated errors */ }
-    );
+      (errorMessage) => { /* ignore */ }
+    ).catch(err => {
+      console.error("Kamera xatosi:", err);
+    });
 
     return () => {
-      scanner.clear().catch(e => console.error(e));
+      if (html5QrCode.isScanning) {
+        html5QrCode.stop().catch(err => console.error(err));
+      }
     };
   }, [onScan]);
 
