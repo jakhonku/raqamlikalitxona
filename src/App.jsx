@@ -331,8 +331,13 @@ function App() {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Xonani band qilish: {selectedRoom}-xona</h2>
+              <h2>Xonani band qilish</h2>
               <button onClick={closeBtn} className="icon-btn"><X size={24} /></button>
+            </div>
+
+            <div className="room-preview-card">
+              <img src="/room-preview.png" alt="Xona ko'rinishi" className="room-preview-img" />
+              <div className="room-preview-badge">{selectedRoom}-xona</div>
             </div>
 
             <div className="form-group">
