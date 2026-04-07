@@ -330,7 +330,7 @@ function App() {
                       placeholder="Qidirish yoki skanerlang..."
                       className="input-field"
                     />
-                    {suggestions.length > 0 && (
+                    {suggestions.length > 0 && !qrOpen && (
                       <div className="suggestions">
                         {suggestions.map((s) => (
                           <div key={s} className="suggestion-item" onClick={() => selectSuggestion(s)}>
