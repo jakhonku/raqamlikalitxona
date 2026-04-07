@@ -85,7 +85,7 @@ function App() {
     setOccupant('');
     setRole('');
     setDuration('');
-    setSuggestions(users);
+    setSuggestions(users.map(u => u.name));
     setQrOpen(false);
     setModalOpen(true);
   };
@@ -98,8 +98,8 @@ function App() {
   const handleOccupantInput = (e) => {
     const val = e.target.value;
     setOccupant(val);
-    const matches = users.filter((u) => u.toLowerCase().includes(val.toLowerCase()));
-    setSuggestions(matches);
+    const matches = users.filter((u) => u.name.toLowerCase().includes(val.toLowerCase()));
+    setSuggestions(matches.map(m => m.name));
   };
 
   const selectSuggestion = (name) => {
@@ -111,13 +111,30 @@ function App() {
     }
   };
 
+  const handleQRScan = (scannedId) => {
+    const foundUser = users.find(u => u.id === scannedId);
+    if (foundUser) {
+      selectSuggestion(foundUser.name);
+      setQrOpen(false);
+    } else {
+      // If it's not a known ID, maybe it's the name itself?
+      const foundByName = users.find(u => u.name.includes(scannedId));
+      if (foundByName) {
+        selectSuggestion(foundByName.name);
+        setQrOpen(false);
+      } else {
+        alert("Topilmadi: " + scannedId);
+      }
+    }
+  };
+
   const showToastMsg = (msg) => {
     setToast({ show: true, message: msg });
     setTimeout(() => setToast({ show: false, message: '' }), 3000);
   };
 
   const confirmIssue = async () => {
-    if (!users.includes(occupant)) {
+    if (!users.some(u => u.name === occupant)) {
       alert("Iltimos, ro'yxatdan xodim yoki talabani tanlang!");
       return;
     }
@@ -358,7 +375,7 @@ function App() {
               )}
             </div>
 
-            {qrOpen && !users.includes(occupant) && <QRScanner onScan={(txt) => { selectSuggestion(txt); setQrOpen(false); }} />}
+            {qrOpen && !users.some(u => u.name === occupant) && <QRScanner onScan={handleQRScan} />}
 
 
             {role === 'student' && (

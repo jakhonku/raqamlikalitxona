@@ -175,8 +175,8 @@ function getUsersList() {
       for (let i = 1; i < data.length; i++) {
         if (data[i][0]) {
           let name = data[i][0].toString().trim();
-          if (!name.includes("(O'qituvchi)")) name += " (O'qituvchi)";
-          users.push(name);
+          let id = data[i][2] ? data[i][2].toString().trim() : "";
+          users.push({ name: name + " (O'qituvchi)", id: id });
         }
       }
     }
@@ -190,8 +190,8 @@ function getUsersList() {
       for (let i = 1; i < data.length; i++) {
         if (data[i][0]) {
           let name = data[i][0].toString().trim();
-          if (!name.includes("(Talaba)")) name += " (Talaba)";
-          users.push(name);
+          let id = data[i][2] ? data[i][2].toString().trim() : "";
+          users.push({ name: name + " (Talaba)", id: id });
         }
       }
     }
