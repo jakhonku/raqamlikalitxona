@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Info, QrCode, X, Check, CameraOff } from 'lucide-react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import './index.css';
 
 // TODO: Replace this with your Google Apps Script Web App URL after deploying Code.gs
@@ -360,8 +360,8 @@ function App() {
                     />
                     {suggestions.length > 0 && !qrOpen && (
                       <div className="suggestions">
-                        {suggestions.map((s) => (
-                          <div key={s} className="suggestion-item" onClick={() => selectSuggestion(s)}>
+                        {suggestions.map((s, idx) => (
+                          <div key={`${s}-${idx}`} className="suggestion-item" onClick={() => selectSuggestion(s)}>
                             {s}
                           </div>
                         ))}
