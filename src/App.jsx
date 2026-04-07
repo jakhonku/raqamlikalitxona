@@ -4,7 +4,7 @@ import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import './index.css';
 
 // TODO: Replace this with your Google Apps Script Web App URL after deploying Code.gs
-const GAS_URL = "https://script.google.com/macros/s/AKfycbx0sF0HuDnV0aGnALAgQE_5Vfsbc2sHkAMlbYY7hsGXyGdyGichrgxGeu1fr3lwEWDUQQ/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxeuxLr2HaDC2m_nC5qVGiOIFLKAWKqaoqsUMI184k-_K-Pjkt33G_XOeg0r2nt-J-JRA/exec";
 
 function App() {
   const [rooms, setRooms] = useState([]);
@@ -501,7 +501,7 @@ function AnalyticsDashboard({ analytics }) {
           <Users size={20} color="var(--status-free)" />
           <div className="card-info">
             <span className="label">Eng faol xodim</span>
-            <span className="value" style={{fontSize: '14px'}}>{userUsage[0]?.name || '-'}</span>
+            <span className="value" style={{ fontSize: '14px' }}>{userUsage[0]?.name || '-'}</span>
           </div>
         </div>
       </div>
@@ -531,13 +531,13 @@ function AnalyticsDashboard({ analytics }) {
           <div className="bar-chart">
             {dailyUsage.length > 0 ? dailyUsage.map((item) => (
               <div key={item.date} className="bar-row">
-                <div className="bar-label" style={{width: 90, fontSize: 11}}>{item.date}</div>
+                <div className="bar-label" style={{ width: 90, fontSize: 11 }}>{item.date}</div>
                 <div className="bar-container">
-                  <div className="bar-fill" style={{ width: `${(item.count / (Math.max(...dailyUsage.map(d=>d.count)) || 1)) * 100}%`, background: '#10b981' }}></div>
+                  <div className="bar-fill" style={{ width: `${(item.count / (Math.max(...dailyUsage.map(d => d.count)) || 1)) * 100}%`, background: '#10b981' }}></div>
                   <span className="bar-value">{item.count}</span>
                 </div>
               </div>
-            )) : <p style={{color: '#9ca3af', fontSize: 13}}>Ma'lumot mavjud emas</p>}
+            )) : <p style={{ color: '#9ca3af', fontSize: 13 }}>Ma'lumot mavjud emas</p>}
           </div>
         </div>
       </div>
@@ -546,11 +546,11 @@ function AnalyticsDashboard({ analytics }) {
         <h3>👤 Eng ko'p kalit olganlar (Top 5)</h3>
         <div className="user-ranking">
           {userUsage.map((user, idx) => (
-             <div key={idx} className="user-rank-item">
-                <div className="rank-num">{idx + 1}</div>
-                <div className="user-name">{user.name}</div>
-                <div className="user-count">{user.count} marta</div>
-             </div>
+            <div key={idx} className="user-rank-item">
+              <div className="rank-num">{idx + 1}</div>
+              <div className="user-name">{user.name}</div>
+              <div className="user-count">{user.count} marta</div>
+            </div>
           ))}
         </div>
       </div>
