@@ -244,6 +244,62 @@ function getAnalytics() {
 }
 
 /**
+ * AVTOMATIK ID YARATISH:
+ * Jadvalda ism yozilganda unga avtomatik ravishda noyob (unique) ID generatsiya qiladi.
+ */
+function onEdit(e) {
+  const sheet = e.source.getActiveSheet();
+  const sheetName = sheet.getName();
+  const range = e.range;
+  const col = range.getColumn();
+  const row = range.getRow();
+  
+  // Faqat kerakli sahifalarda va 1-ustunda (FISH) ism yozilsa ishlaydi
+  const sourceSheets = ["O'qituvchilar", "Talabalar", "Hodimlar"];
+  
+  if (sourceSheets.includes(sheetName) && col === 1 && row > 1) {
+    const name = range.getValue();
+    const idCell = sheet.getRange(row, 3); // 3-ustun (ID)
+    
+    // Agar ism yozilgan bo'lsa va ID hali yo'q bo'lsa
+    if (name && !idCell.getValue()) {
+      const nextId = generateNextUID(e.source);
+      idCell.setValue(nextId);
+    }
+  }
+}
+
+/**
+ * Barcha jadvallardan o'tib, eng oxirgi (eng katta) ID ni topadi 
+ * va keyingisini qaytaradi (Format: RK-1001).
+ */
+function generateNextUID(ss) {
+  const sheets = ["O'qituvchilar", "Talabalar", "Hodimlar"];
+  let maxId = 1000; // 1001 dan boshlanadi
+  
+  sheets.forEach(name => {
+    try {
+      const s = ss.getSheetByName(name);
+      if (s) {
+        const data = s.getDataRange().getValues();
+        for (let i = 1; i < data.length; i++) {
+          const idValue = data[i][2]; // C ustun (ID)
+          if (idValue && typeof idValue === 'string' && idValue.startsWith("RK-")) {
+            const num = parseInt(idValue.split("-")[1], 10);
+            if (!isNaN(num) && num > maxId) {
+              maxId = num;
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  });
+  
+  const nextNum = maxId + 1;
+  return "RK-" + nextNum;
+}
+
+/**
  * SOZLASH FUNKSIYASI:
  * Google Sheet'da barcha kerakli sahifalarni yaratadi.
  * Code.gs'da ushbu funksiyani bir marta ishga tushiring.
@@ -276,7 +332,7 @@ function setupSheets() {
   if (!tSheet) tSheet = ss.insertSheet("O'qituvchilar");
   tSheet.clear();
   tSheet.appendRow(["FISH", "Lavozimi", "ID"]);
-  tSheet.appendRow(["Alisher Navoiy", "Professor", "ID-001"]);
+  tSheet.appendRow(["Alisher Navoiy", "Professor", "RK-1001"]);
   tSheet.getRange("A1:C1").setFontWeight("bold");
   tSheet.autoResizeColumns(1, 3);
   
@@ -285,7 +341,7 @@ function setupSheets() {
   if (!sSheet) sSheet = ss.insertSheet("Talabalar");
   sSheet.clear();
   sSheet.appendRow(["FISH", "Yo'nalish", "ID"]);
-  sSheet.appendRow(["Mirzo Ulugbek", "Astronomiya", "ID-002"]);
+  sSheet.appendRow(["Mirzo Ulugbek", "Astronomiya", "RK-1002"]);
   sSheet.getRange("A1:C1").setFontWeight("bold");
   sSheet.autoResizeColumns(1, 3);
 
@@ -294,9 +350,10 @@ function setupSheets() {
   if (!hSheet) hSheet = ss.insertSheet("Hodimlar");
   hSheet.clear();
   hSheet.appendRow(["FISH", "Lavozimi", "ID"]);
-  hSheet.appendRow(["Abdulla Qodiriy", "Kutubxonachi", "ID-003"]);
+  hSheet.appendRow(["Abdulla Qodiriy", "Kutubxonachi", "RK-1003"]);
   hSheet.getRange("A1:C1").setFontWeight("bold");
   hSheet.autoResizeColumns(1, 3);
 
-  Browser.msgBox("Tizim tayyor! Barcha sahifalar (Xonalar, Loglar, O'qituvchilar, Talabalar, Hodimlar) yaratildi.");
+  Browser.msgBox("Tizim tayyor! ID generatsiya qilish uchun ism yozing (Format: RK-XXXX)");
 }
+
