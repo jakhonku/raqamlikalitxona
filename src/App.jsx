@@ -60,7 +60,7 @@ function App() {
     const roomsSub = supabase.channel('rooms').on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => fetchRooms()).subscribe();
     const usersSub = supabase.channel('users').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchUsers()).subscribe();
     const logsSub = supabase.channel('logs').on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, () => fetchAnalytics()).subscribe();
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000); // 1s refresh for real-time clock
     return () => {
       supabase.removeChannel(roomsSub);
       supabase.removeChannel(usersSub);
@@ -114,14 +114,14 @@ function App() {
   };
 
   const fetchAnalytics = async () => {
-    const todayStr = new Date().toLocaleDateString('en-CA');
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' });
     const { data: allLogs } = await supabase.from('logs').select('*').order('created_at', { ascending: false });
     if (!allLogs) return;
     setLogs(allLogs);
     let metrics = { olingan: 0, qaytarilgan: 0, rooms: {}, todayUsed: new Set() };
     allLogs.forEach(l => {
-      const logDate = l.created_at.split('T')[0];
-      if (logDate === todayStr) {
+      const logLocalDate = new Date(l.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' });
+      if (logLocalDate === todayStr) {
         if (l.action === 'Olingan') { metrics.olingan++; metrics.rooms[l.room_id] = (metrics.rooms[l.room_id] || 0) + 1; metrics.todayUsed.add(l.room_id); }
         else if (l.action === 'Qaytarildi') metrics.qaytarilgan++;
       }
@@ -197,7 +197,7 @@ function App() {
   const confirmIssue = async () => {
     if (!occupant || !selectedRoom) return;
     setActionLoading(true);
-    const t = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
+    const t = new Date().toLocaleTimeString('uz-UZ', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false });
     const durStr = (occupant.includes('(Talaba)')) ? `${duration} soat` : '-';
     await supabase.from('rooms').update({ status: 'occupied', occupant, time: t, duration: durStr }).eq('id', selectedRoom);
     await supabase.from('logs').insert([{ room_id: String(selectedRoom), occupant, action: 'Olingan', duration: durStr }]);
@@ -389,7 +389,7 @@ function AnalyticsDashboard({ analytics, logs, rooms, onRefresh, onClearRequest 
           const roomLogs = logs.filter(l => String(l.room_id) === String(room.id));
           return (
             <Panel header={<div className="panel-header-flex"><span className="room-label">Xona {room.id}</span>{roomLogs.length > 0 ? <Tag color="blue" size="small">{roomLogs.length} harakat</Tag> : <Tag color="default" size="small">Yo'q</Tag>}</div>} key={room.id}>
-              <Table size="small" pagination={roomLogs.length > 5 ? { pageSize: 5 } : false} dataSource={roomLogs} rowKey="id" columns={[{ title: 'Shaxs', dataIndex: 'occupant' }, { title: 'Harakat', dataIndex: 'action', render: (a) => <Tag color={a === 'Olingan' ? 'green' : 'blue'} size="small">{a}</Tag> }, { title: 'Vaqt', dataIndex: 'created_at', render: (d) => new Date(d).toLocaleTimeString() }]} />
++              <Table size="small" pagination={roomLogs.length > 5 ? { pageSize: 5 } : false} dataSource={roomLogs} rowKey="id" columns={[{ title: 'Shaxs', dataIndex: 'occupant' }, { title: 'Harakat', dataIndex: 'action', render: (a) => <Tag color={a === 'Olingan' ? 'green' : 'blue'} size="small">{a}</Tag> }, { title: 'Vaqt', dataIndex: 'created_at', render: (d) => new Date(d).toLocaleTimeString('uz-UZ', { timeZone: 'Asia/Tashkent' }) }]} />
             </Panel>
           );
         })}
