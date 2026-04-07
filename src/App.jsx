@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Info, QrCode, X, Check, CameraOff } from 'lucide-react';
+import { Search, Info, QrCode, X, Check, CameraOff, BarChart3, PieChart, Users, LayoutDashboard } from 'lucide-react';
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import './index.css';
 
@@ -24,6 +24,8 @@ function App() {
   const [toast, setToast] = useState({ show: false, message: '' });
 
   const [qrOpen, setQrOpen] = useState(false);
+  const [view, setView] = useState('list'); // 'list' yoki 'analytics'
+  const [analytics, setAnalytics] = useState([]);
 
   useEffect(() => {
     fetchData(true);
@@ -50,6 +52,7 @@ function App() {
       if (result.success) {
         setRooms(result.data.rooms || []);
         setUsers(result.data.users || []);
+        setAnalytics(result.data.analytics || []);
       }
     } catch (e) {
       console.warn("GAS CORS error or invalid link. Using mock data for Vite dev mode.", e);
@@ -211,15 +214,29 @@ function App() {
 
   return (
     <div className="layout">
-      <header className="header">
-        <div className="logo">
-          <QrCode className="logo-icon" />
-          Raqamli Kalitxona
+      <header className="header" style={{ padding: 0 }}>
+        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px' }}>
+          <div className="logo">
+            <LayoutDashboard className="logo-icon" size={24} />
+            <span className="logo-text">Raqamli Kalitxona</span>
+          </div>
+          <div className="nav-tabs">
+            <button className={`nav-btn ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>
+              <Users size={18} /> <span>Kalitlar</span>
+            </button>
+            <button className={`nav-btn ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>
+              <BarChart3 size={18} /> <span>Monitoring</span>
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="container">
-        <div className="controls">
+        {view === 'analytics' ? (
+          <AnalyticsDashboard analytics={analytics} rooms={rooms} />
+        ) : (
+          <>
+            <div className="controls">
           <div className="search-box">
             <Search className="search-icon" size={18} />
             <input
@@ -330,6 +347,8 @@ function App() {
             </table>
           </div>
         )}
+      </>
+    )}
       </main>
 
       {modalOpen && (
@@ -456,6 +475,65 @@ function QRScanner({ onScan }) {
   return (
     <div style={{ marginBottom: 15 }}>
       <div id="reader" style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #d1d5db', background: '#000' }}></div>
+    </div>
+  );
+}
+
+function AnalyticsDashboard({ analytics, rooms }) {
+  const sorted = [...analytics].sort((a, b) => b.count - a.count);
+  const topRooms = sorted.slice(0, 5);
+  const leastRooms = sorted.length > 5 ? [...sorted].reverse().slice(0, 5) : [];
+  const totalUsage = analytics.reduce((sum, item) => sum + item.count, 0);
+
+  return (
+    <div className="analytics-view">
+      <div className="analytics-header">
+        <div className="analytics-card main">
+          <PieChart size={24} color="var(--primary)" />
+          <div className="card-info">
+            <span className="label">Umumiy foydalanishlar</span>
+            <span className="value">{totalUsage} marta</span>
+          </div>
+        </div>
+        <div className="analytics-card">
+          <Users size={20} color="var(--status-free)" />
+          <div className="card-info">
+            <span className="label">Eng faol xona</span>
+            <span className="value">{topRooms[0]?.id || '-'}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="chart-section">
+        <h3>📊 Eng ko'p foydalaniladigan xonalar (Top 5)</h3>
+        <div className="bar-chart">
+          {topRooms.map((item) => {
+            const percentage = totalUsage > 0 ? (item.count / sorted[0].count) * 100 : 0;
+            return (
+              <div key={item.id} className="bar-row">
+                <div className="bar-label">Xona {item.id}</div>
+                <div className="bar-container">
+                  <div className="bar-fill" style={{ width: `${percentage}%` }}></div>
+                  <span className="bar-value">{item.count} marta</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {leastRooms.length > 0 && (
+        <div className="chart-section" style={{ marginTop: 30 }}>
+          <h3>📉 Kam foydalaniladigan xonalar</h3>
+          <div className="least-rooms-list">
+            {leastRooms.map((item) => (
+              <div key={item.id} className="least-room-tag">
+                Xona {item.id}: <span>{item.count} marta</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -36,7 +36,8 @@ function doGet(e) {
         success: true, 
         data: {
           rooms: getRoomsData(),
-          users: getUsersList()
+          users: getUsersList(),
+          analytics: getAnalytics()
         }
       });
     }
@@ -198,6 +199,25 @@ function getUsersList() {
   } catch(e) {}
   
   return users;
+}
+
+function getAnalytics() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const logsSheet = ss.getSheetByName('Loglar');
+  if (!logsSheet) return [];
+  
+  const data = logsSheet.getDataRange().getValues();
+  let usage = {};
+  
+  for (let i = 1; i < data.length; i++) {
+    const roomId = data[i][0].toString();
+    const action = data[i][2]; // 'Olingan (Check-out)'
+    if (action && action.toString().includes('Olingan')) {
+      usage[roomId] = (usage[roomId] || 0) + 1;
+    }
+  }
+  
+  return Object.keys(usage).map(id => ({ id: id, count: usage[id] }));
 }
 
 /**
