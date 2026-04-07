@@ -227,7 +227,7 @@ function App() {
                        </div>
                      );
                    }},
-                   { title: 'Amal', width: '20%', render: (_, r) => r.status==='free' ? <Button type="primary" onClick={() => { setSelectedRoom(r.id); setModalOpen(true); setQrOpen(false); setOccupant(null); }}>Band qilish</Button> : <Button danger onClick={() => receiveKey(r.id, r.occupant)}>Bo'shatish</Button> }
+                   { title: 'Boshqaruv', width: '20%', render: (_, r) => r.status==='free' ? <Button type="primary" onClick={() => { setSelectedRoom(r.id); setModalOpen(true); setQrOpen(false); setOccupant(null); }}>Band qilish</Button> : <Button danger onClick={() => receiveKey(r.id, r.occupant)}>Bo'shatish</Button> }
                  ]} />
                </div>
              </>
@@ -246,7 +246,7 @@ function App() {
                 <Col xs={24} md={12}><h4>Yakka qo'shish</h4><div style={{marginTop:12}}><Input placeholder="F.I.SH" size="large" value={newUserName} onChange={e => setNewUserName(e.target.value)} style={{marginBottom:10}} /><Select size="large" style={{width:'100%', marginBottom:10}} value={newUserRole} onChange={setNewUserRole} options={[{label:'Oqituvchi',value:'teacher'},{label:'Talaba',value:'student'},{label:'Hodim',value:'staff'}]} /><Button type="primary" size="large" block onClick={addUser}>Qo'shish</Button></div></Col>
                 <Col xs={24} md={12}><h4>Excel yuklash</h4><div style={{marginTop:12}}><Select size="large" style={{width:150, marginRight:10}} value={newUserRole} onChange={setNewUserRole} options={[{label:'Oqituvchi',value:'teacher'},{label:'Talaba',value:'student'},{label:'Hodim',value:'staff'}]} /><Upload beforeUpload={importUsersExcel} showUploadList={false}><Button size="large" icon={<FileExcelOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></div></Col>
               </Row>
-              <Divider /><Table dataSource={users} rowKey="id" columns={[{ title: 'F.I.SH', dataIndex: 'name' }, { title: 'Lavozimi', dataIndex: 'role', render: (r) => <Tag color="blue">{r==='teacher'?'O\'qituvchi':r==='student'?'Talaba':'Hodim'}</Tag> }, { title: 'Amal', render: (_, r) => <Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm> }]} pagination={{pageSize:10}} />
+              <Divider /><Table dataSource={users} rowKey="id" columns={[{ title: 'ID', dataIndex: 'id', width: '15%', render: (id) => <Tag color="blue"><strong>{id}</strong></Tag> }, { title: 'F.I.SH', dataIndex: 'name' }, { title: 'Lavozimi', dataIndex: 'role', render: (r) => <Tag color={r==='teacher'?'gold':r==='student'?'cyan':'purple'}>{r==='teacher'?'O\'qituvchi':r==='student'?'Talaba':'Hodim'}</Tag> }, { title: 'Boshqaruv', width: '10%', render: (_, r) => <Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm> }]} pagination={{pageSize:10}} />
             </Card>
           )}
 
