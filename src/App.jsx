@@ -99,13 +99,16 @@ function App() {
 
   const fetchInitialData = async () => {
     setLoading(true);
-    await Promise.all([fetchRooms(), fetchUsers(), fetchAnalytics()]);
+    const roomsData = await fetchRooms();
+    await fetchUsers();
+    await fetchAnalytics(roomsData);
     setLoading(false);
   };
 
   const fetchRooms = async () => {
     const { data } = await supabase.from('rooms').select('*').order('id', { ascending: true });
-    if (data) setRooms(data);
+    if (data) { setRooms(data); return data; }
+    return [];
   };
 
   const fetchUsers = async () => {
@@ -113,7 +116,8 @@ function App() {
     if (data) setUsers(data);
   };
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (roomsList) => {
+    const activeRooms = roomsList || rooms;
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' });
     const { data: allLogs } = await supabase.from('logs').select('*').order('created_at', { ascending: false });
     if (!allLogs) return;
@@ -129,7 +133,7 @@ function App() {
     setAnalytics({
       todayTaken: metrics.olingan, todayReturned: metrics.qaytarilgan,
       roomUsage: Object.entries(metrics.rooms).map(([id, count]) => ({ id, count })).sort((a, b) => b.count - a.count),
-      idleRooms: rooms.filter(r => !metrics.todayUsed.has(String(r.id))).map(r => r.id)
+      idleRooms: activeRooms.filter(r => !metrics.todayUsed.has(String(r.id))).map(r => r.id)
     });
   };
 
