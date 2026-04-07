@@ -115,15 +115,17 @@ body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color
   
   .badge { padding: 3px 6px; font-size: 10px; }
   
-  .modal { padding: 20px; border-radius: 0; position: fixed; bottom: 0; left: 0; right: 0; max-width: 100%; border-left: none; border-right: none; border-bottom: none; }
+  .modal { padding: 25px 20px 40px 20px; border-radius: 20px 20px 0 0; position: fixed; bottom: 0; left: 0; right: 0; max-width: 100%; border: 1px solid var(--border-color); min-height: 50vh; display: flex; flex-direction: column; }
   .modal-overlay { align-items: flex-end; padding: 0; }
   
   .btn-sm { padding: 8px 10px; font-size: 12px; }
+  
+  .suggestions { bottom: 100%; top: auto; margin-bottom: 4px; } /* On mobile, show suggestions ABOVE the input to avoid button overlap */
 }
 
 @media (max-width: 480px) {
   .rooms-table th, .rooms-table td { padding: 10px 6px; font-size: 11px; }
-  .col-room { width: 50px; font-size: 11px; }
+  .col-room { width: 48px; font-size: 11px; }
   .occupant-name { font-size: 11px; }
   .occupant-time { font-size: 10px; }
   .col-action { width: 85px; }
