@@ -52,17 +52,11 @@ function App() {
         setAnalytics(result.data.analytics || []);
       }
     } catch (e) {
-      console.warn("GAS CORS error or invalid link. Using mock data.", e);
-      setRooms([
-        { id: '101', status: 'free', occupant: null, time: null },
-        { id: '102', status: 'occupied', occupant: 'Alisher Navoiy(Oqituvchi)', time: '08:30' },
-        { id: '202', status: 'occupied', occupant: 'Mirzo Ulugbek (Talaba)', time: '09:00' }
-      ]);
-      setUsers([
-        { name: 'Alisher Navoiy (Oqituvchi)', id: 'ID-001' },
-        { name: 'Zahiriddin Muhammad Bobur (Oqituvchi)', id: 'ID-002' },
-        { name: 'Mirzo Ulugbek (Talaba)', id: 'ID-003' }
-      ]);
+      console.error("Ma'lumotlarni yuklashda xatolik:", e);
+      message.error("Ma'lumotlarni Google Sheet'dan olib bo'lmadi. Iltimos, ulanishni tekshiring.");
+      setRooms([]);
+      setUsers([]);
+      setAnalytics([]);
     }
     if (showMainLoader) setLoading(false);
   };
@@ -146,15 +140,7 @@ function App() {
         message.error(data.message || "Xatolik yuz berdi");
       }
     } catch (e) {
-      setTimeout(() => {
-        setRooms(rooms.map(r =>
-          r.id === selectedRoom
-            ? { ...r, status: 'occupied', occupant: occupant + (role === 'student' ? ` (${duration} soatga)` : ''), time: new Date().getHours() + ':' + String(new Date().getMinutes()).padStart(2, '0') }
-            : r
-        ));
-        closeBtn();
-        message.success('Sinov: xona band qilindi!');
-      }, 500);
+      message.error("Tasdiqlashda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     } finally {
       setActionLoading(false);
     }
@@ -180,8 +166,7 @@ function App() {
             message.success(data.message);
           }
         } catch (e) {
-          setRooms(rooms.map(r => r.id === roomId ? { ...r, status: 'free', occupant: null, time: null } : r));
-          message.success("Sinov orqali қайтарилди!");
+          message.error("Ma'lumotni Google Sheet'ga yuborishda xatolik!");
         }
       }
     });
