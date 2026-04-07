@@ -4,7 +4,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import './index.css';
 
 // TODO: Replace this with your Google Apps Script Web App URL after deploying Code.gs
-const GAS_URL = "https://script.google.com/macros/s/AKfycbz7eDezENgv6HBbE2F32IGa6o6Mk7VKl_S8y2HIxkaq1EbOhWIi3pWkrFIKf2IR3wvg3w/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxUWKoVEqCOyLElJGAmY0DW6_r9a7Fyc3LtBlRdaBHAcAFqUOiYplf0flVbAgRsSZ8Z/exec";
 
 function App() {
   const [rooms, setRooms] = useState([]);
