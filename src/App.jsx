@@ -59,9 +59,9 @@ function App() {
         { id: '202', status: 'occupied', occupant: 'Mirzo Ulugbek (Talaba)', time: '09:00' }
       ]);
       setUsers([
-        'Alisher Navoiy (Oqituvchi)',
-        'Zahiriddin Muhammad Bobur (Oqituvchi)',
-        'Mirzo Ulugbek (Talaba)'
+        { name: 'Alisher Navoiy (Oqituvchi)', id: 'ID-001' },
+        { name: 'Zahiriddin Muhammad Bobur (Oqituvchi)', id: 'ID-002' },
+        { name: 'Mirzo Ulugbek (Talaba)', id: 'ID-003' }
       ]);
     }
     if (showMainLoader) setLoading(false);
@@ -109,6 +109,7 @@ function App() {
     } else {
       setRole('teacher');
     }
+    setSuggestions([]);
   };
 
   const handleQRScan = (scannedId) => {
@@ -343,7 +344,7 @@ function App() {
 
             <div className="form-group">
               <label>Xodim yoki Talaba (Ro'yxatdan tanlang)</label>
-              {!users.includes(occupant) ? (
+              {!users.some(u => u.name === occupant) ? (
                 <div style={{ display: 'flex', gap: 10 }}>
                   <div style={{ position: 'relative', flex: 1 }}>
                     <input
@@ -374,7 +375,7 @@ function App() {
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb', padding: '10px 14px', borderRadius: 6, border: '1px solid #d1d5db' }}>
                   <span style={{ fontWeight: 600, color: '#111827' }}>{occupant}</span>
-                  <button onClick={() => { setOccupant(''); setSuggestions(users); }} className="icon-btn" style={{ padding: 4, display: 'flex' }}>
+                  <button onClick={() => { setOccupant(''); setSuggestions(users.map(u => u.name)); }} className="icon-btn" style={{ padding: 4, display: 'flex' }}>
                     <X size={18} />
                   </button>
                 </div>
