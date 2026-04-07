@@ -98,8 +98,11 @@ function App() {
 
   const handleUserSelect = (value) => {
     setOccupant(value);
-    if (value.toLowerCase().includes('talaba')) {
+    const lowerValue = value.toLowerCase();
+    if (lowerValue.includes('talaba')) {
       setRole('student');
+    } else if (lowerValue.includes('hodim')) {
+      setRole('staff');
     } else {
       setRole('teacher');
     }
