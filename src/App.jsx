@@ -389,7 +389,7 @@ function AnalyticsDashboard({ analytics, logs, rooms, onRefresh, onClearRequest 
           const roomLogs = logs.filter(l => String(l.room_id) === String(room.id));
           return (
             <Panel header={<div className="panel-header-flex"><span className="room-label">Xona {room.id}</span>{roomLogs.length > 0 ? <Tag color="blue" size="small">{roomLogs.length} harakat</Tag> : <Tag color="default" size="small">Yo'q</Tag>}</div>} key={room.id}>
-              <Table size="small" pagination={roomLogs.length > 5 ? { pageSize: 5 } : false} dataSource={roomLogs} rowKey="id" columns={[{ title: 'Shaxs', dataIndex: 'occupant_name' }, { title: 'Harakat', dataIndex: 'action', render: (a) => <Tag color={a === 'Olingan' ? 'green' : 'blue'} size="small">{a}</Tag> }, { title: 'Vaqt', dataIndex: 'created_at', render: (d) => new Date(d).toLocaleTimeString() }]} />
+              <Table size="small" pagination={roomLogs.length > 5 ? { pageSize: 5 } : false} dataSource={roomLogs} rowKey="id" columns={[{ title: 'Shaxs', dataIndex: 'occupant' }, { title: 'Harakat', dataIndex: 'action', render: (a) => <Tag color={a === 'Olingan' ? 'green' : 'blue'} size="small">{a}</Tag> }, { title: 'Vaqt', dataIndex: 'created_at', render: (d) => new Date(d).toLocaleTimeString() }]} />
             </Panel>
           );
         })}
