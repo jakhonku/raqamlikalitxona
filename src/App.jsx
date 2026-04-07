@@ -4,7 +4,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import './index.css';
 
 // TODO: Replace this with your Google Apps Script Web App URL after deploying Code.gs
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzMxoANPeLbEYeBrZghjGD6dlSRlo-4YmO_Ib_mFir2T9jIeXjAVl10jG23z3zwKxXsuA/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbz7eDezENgv6HBbE2F32IGa6o6Mk7VKl_S8y2HIxkaq1EbOhWIi3pWkrFIKf2IR3wvg3w/exec";
 
 function App() {
   const [rooms, setRooms] = useState([]);
@@ -27,7 +27,7 @@ function App() {
 
   useEffect(() => {
     fetchData(true);
-    
+
     // Tizim har 15 soniyada orqa fonda jadvallarni tekshirib turadi (Live Sinxronizatsiya)
     const interval = setInterval(() => {
       fetchData(false);
@@ -270,17 +270,17 @@ function App() {
                       if (parts.length >= 2) {
                         const hh = parseInt(parts[0], 10);
                         const mm = parseInt(parts[1], 10);
-                        
+
                         const now = new Date();
                         let issueTime = new Date();
                         issueTime.setHours(hh, mm, 0, 0);
-                        
+
                         if (issueTime > now) {
                           issueTime.setDate(issueTime.getDate() - 1);
                         }
-                        
+
                         const dueTime = new Date(issueTime.getTime() + durHours * 60 * 60 * 1000);
-                        
+
                         if (now > dueTime) {
                           const diffMins = Math.floor((now - dueTime) / 60000);
                           const oHr = Math.floor(diffMins / 60);
@@ -410,13 +410,13 @@ function QRScanner({ onScan }) {
   useEffect(() => {
     // High-level scanner is more stable for cross-browser
     const scanner = new Html5QrcodeScanner(
-      "reader", 
-      { 
-        fps: 10, 
+      "reader",
+      {
+        fps: 10,
         qrbox: { width: 250, height: 250 },
         videoConstraints: { facingMode: "environment" }, // Orqa kamerani tanlash
         rememberLastUsedCamera: true
-      }, 
+      },
       false
     );
 
