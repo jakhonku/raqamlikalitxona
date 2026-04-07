@@ -103,8 +103,9 @@ function App() {
   };
 
   const selectSuggestion = (name) => {
-    setOccupant(name);
-    if (name.toLowerCase().includes('talaba')) {
+    const trimmedName = name.trim();
+    setOccupant(trimmedName);
+    if (trimmedName.toLowerCase().includes('talaba')) {
       setRole('student');
     } else {
       setRole('teacher');
@@ -113,18 +114,21 @@ function App() {
   };
 
   const handleQRScan = (scannedId) => {
-    const foundUser = users.find(u => u.id === scannedId);
+    const sId = String(scannedId).trim();
+    const foundUser = users.find(u => u.id === sId);
     if (foundUser) {
+      setSuggestions([]); // Clear first
       selectSuggestion(foundUser.name);
       setQrOpen(false);
     } else {
       // If it's not a known ID, maybe it's the name itself?
-      const foundByName = users.find(u => u.name.includes(scannedId));
+      const foundByName = users.find(u => u.name.toLowerCase().includes(sId.toLowerCase()));
       if (foundByName) {
+        setSuggestions([]); // Clear first
         selectSuggestion(foundByName.name);
         setQrOpen(false);
       } else {
-        alert("Topilmadi: " + scannedId);
+        alert("Topilmadi: " + sId);
       }
     }
   };
