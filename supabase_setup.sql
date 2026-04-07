@@ -12,6 +12,7 @@ CREATE TABLE rooms (
 CREATE TABLE users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  password TEXT,
   role TEXT NOT NULL DEFAULT 'teacher' -- 'teacher', 'student', 'staff'
 );
 
@@ -35,17 +36,16 @@ INSERT INTO users (id, name, role) VALUES
 ('RK-1002', 'Mirzo Ulugbek', 'student'),
 ('RK-1003', 'Abdulla Qodiriy', 'staff');
 
--- RLS (Hammasiga ruxsat berish - Test uchun)
--- Supabase dashboardda buni qo'shish shart emas agar o'chirilgan bo'lsa
-ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
+-- 4. Adminlar jadvali (Admin Config)
+CREATE TABLE admin_config (
+  id SERIAL PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL
+);
 
-DO $$ 
-BEGIN
-    CREATE POLICY "Public Access" ON rooms FOR ALL USING (true);
-    CREATE POLICY "Public Access" ON users FOR ALL USING (true);
-    CREATE POLICY "Public Access" ON logs FOR ALL USING (true);
-EXCEPTION WHEN others THEN
-    NULL;
-END $$;
+-- Dastlabki admin
+INSERT INTO admin_config (username, password) VALUES ('admin', 'PAROLNI_OZINGIZ_QOYING');
+
+-- RLS (Hammasiga ruxsat berish - Test uchun)
+ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON admins FOR ALL USING (true);
