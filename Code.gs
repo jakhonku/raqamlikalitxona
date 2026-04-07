@@ -194,20 +194,39 @@ function getUsersList() {
 function getAnalytics() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const logsSheet = ss.getSheetByName('Loglar');
-  if (!logsSheet) return [];
+  if (!logsSheet) return { roomUsage: [], dailyUsage: [], userUsage: [] };
   
   const data = logsSheet.getDataRange().getValues();
-  let usage = {};
+  let roomUsage = {};
+  let dailyUsage = {};
+  let userUsage = {};
   
   for (let i = 1; i < data.length; i++) {
     const roomId = data[i][0].toString();
+    const occupant = data[i][1].toString();
     const action = data[i][2]; // 'Olingan (Check-out)'
+    const dateStr = data[i][3].toString(); // yyyy-MM-dd ...
+    
     if (action && action.toString().includes('Olingan')) {
-      usage[roomId] = (usage[roomId] || 0) + 1;
+      // Room count
+      roomUsage[roomId] = (roomUsage[roomId] || 0) + 1;
+      
+      // User count
+      userUsage[occupant] = (userUsage[occupant] || 0) + 1;
+      
+      // Daily count
+      if (dateStr) {
+        const day = dateStr.split(' ')[0]; // Take only yyyy-MM-dd
+        dailyUsage[day] = (dailyUsage[day] || 0) + 1;
+      }
     }
   }
   
-  return Object.keys(usage).map(id => ({ id: id, count: usage[id] }));
+  return {
+    roomUsage: Object.keys(roomUsage).map(id => ({ id: id, count: roomUsage[id] })),
+    dailyUsage: Object.keys(dailyUsage).map(day => ({ date: day, count: dailyUsage[day] })),
+    userUsage: Object.keys(userUsage).map(name => ({ name: name, count: userUsage[name] }))
+  };
 }
 
 /**

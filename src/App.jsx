@@ -479,11 +479,13 @@ function QRScanner({ onScan }) {
   );
 }
 
-function AnalyticsDashboard({ analytics, rooms }) {
-  const sorted = [...analytics].sort((a, b) => b.count - a.count);
-  const topRooms = sorted.slice(0, 5);
-  const leastRooms = sorted.length > 5 ? [...sorted].reverse().slice(0, 5) : [];
-  const totalUsage = analytics.reduce((sum, item) => sum + item.count, 0);
+function AnalyticsDashboard({ analytics }) {
+  const roomUsage = (analytics?.roomUsage || []).sort((a, b) => b.count - a.count);
+  const dailyUsage = (analytics?.dailyUsage || []).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 7); // Oxirgi 7 kun
+  const userUsage = (analytics?.userUsage || []).sort((a, b) => b.count - a.count).slice(0, 5); // Top 5 user
+
+  const topRooms = roomUsage.slice(0, 5);
+  const totalUsage = roomUsage.reduce((sum, item) => sum + item.count, 0);
 
   return (
     <div className="analytics-view">
@@ -498,42 +500,60 @@ function AnalyticsDashboard({ analytics, rooms }) {
         <div className="analytics-card">
           <Users size={20} color="var(--status-free)" />
           <div className="card-info">
-            <span className="label">Eng faol xona</span>
-            <span className="value">{topRooms[0]?.id || '-'}</span>
+            <span className="label">Eng faol xodim</span>
+            <span className="value" style={{fontSize: '14px'}}>{userUsage[0]?.name || '-'}</span>
           </div>
         </div>
       </div>
 
-      <div className="chart-section">
-        <h3>📊 Eng ko'p foydalaniladigan xonalar (Top 5)</h3>
-        <div className="bar-chart">
-          {topRooms.map((item) => {
-            const percentage = totalUsage > 0 ? (item.count / sorted[0].count) * 100 : 0;
-            return (
-              <div key={item.id} className="bar-row">
-                <div className="bar-label">Xona {item.id}</div>
+      <div className="analytics-grid">
+        <div className="chart-section">
+          <h3>📊 Eng faol xonalar (Top 5)</h3>
+          <div className="bar-chart">
+            {topRooms.map((item) => {
+              const maxCount = roomUsage[0]?.count || 1;
+              const percentage = (item.count / maxCount) * 100;
+              return (
+                <div key={item.id} className="bar-row">
+                  <div className="bar-label">Xona {item.id}</div>
+                  <div className="bar-container">
+                    <div className="bar-fill" style={{ width: `${percentage}%` }}></div>
+                    <span className="bar-value">{item.count}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="chart-section">
+          <h3>📅 Kunlik dinamika (7 kun)</h3>
+          <div className="bar-chart">
+            {dailyUsage.length > 0 ? dailyUsage.map((item) => (
+              <div key={item.date} className="bar-row">
+                <div className="bar-label" style={{width: 90, fontSize: 11}}>{item.date}</div>
                 <div className="bar-container">
-                  <div className="bar-fill" style={{ width: `${percentage}%` }}></div>
-                  <span className="bar-value">{item.count} marta</span>
+                  <div className="bar-fill" style={{ width: `${(item.count / (Math.max(...dailyUsage.map(d=>d.count)) || 1)) * 100}%`, background: '#10b981' }}></div>
+                  <span className="bar-value">{item.count}</span>
                 </div>
               </div>
-            );
-          })}
+            )) : <p style={{color: '#9ca3af', fontSize: 13}}>Ma'lumot mavjud emas</p>}
+          </div>
         </div>
       </div>
 
-      {leastRooms.length > 0 && (
-        <div className="chart-section" style={{ marginTop: 30 }}>
-          <h3>📉 Kam foydalaniladigan xonalar</h3>
-          <div className="least-rooms-list">
-            {leastRooms.map((item) => (
-              <div key={item.id} className="least-room-tag">
-                Xona {item.id}: <span>{item.count} marta</span>
-              </div>
-            ))}
-          </div>
+      <div className="chart-section" style={{ marginTop: 25 }}>
+        <h3>👤 Eng ko'p kalit olganlar (Top 5)</h3>
+        <div className="user-ranking">
+          {userUsage.map((user, idx) => (
+             <div key={idx} className="user-rank-item">
+                <div className="rank-num">{idx + 1}</div>
+                <div className="user-name">{user.name}</div>
+                <div className="user-count">{user.count} marta</div>
+             </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }
