@@ -1,9 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
-import { Search, Info, QrCode, X, Check, CameraOff, BarChart3, PieChart, Users, LayoutDashboard } from 'lucide-react';
-import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  ConfigProvider, Layout, Menu, Input, Table, Tag, Button, 
+  Modal, Spin, Card, Row, Col, Statistic, Select, InputNumber, 
+  message, Empty, theme, Alert
+} from 'antd';
+import { 
+  SearchOutlined, BarChartOutlined, KeyOutlined, 
+  DashboardOutlined, TeamOutlined, ReloadOutlined, CameraOutlined 
+} from '@ant-design/icons';
+import { Html5Qrcode } from 'html5-qrcode';
 import './index.css';
 
-// TODO: Replace this with your Google Apps Script Web App URL after deploying Code.gs
+const { Header, Content } = Layout;
 const GAS_URL = "https://script.google.com/macros/s/AKfycby0BiJF5vDp1jtumKwXi2Mdn39sg9I_hVWTaV5Syr1_KmNk7FnAg2LjBPMQ0xpO9tV8YQ/exec";
 
 function App() {
@@ -11,30 +19,24 @@ function App() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-
+  
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
-
-  const [occupant, setOccupant] = useState('');
+  
+  const [occupant, setOccupant] = useState(null);
   const [role, setRole] = useState('teacher');
-  const [duration, setDuration] = useState('');
-
-  const [suggestions, setSuggestions] = useState([]);
+  const [duration, setDuration] = useState(2);
+  
   const [actionLoading, setActionLoading] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '' });
-
   const [qrOpen, setQrOpen] = useState(false);
-  const [view, setView] = useState('list'); // 'list' yoki 'analytics'
+  const [view, setView] = useState('list');
   const [analytics, setAnalytics] = useState([]);
 
   useEffect(() => {
     fetchData(true);
-
-    // Tizim har 15 soniyada orqa fonda jadvallarni tekshirib turadi (Live Sinxronizatsiya)
     const interval = setInterval(() => {
       fetchData(false);
     }, 15000);
-
     return () => clearInterval(interval);
   }, []);
 
@@ -42,23 +44,18 @@ function App() {
     if (showMainLoader) setLoading(true);
     try {
       const res = await fetch(`${GAS_URL}?action=getAll`);
-      // If CORS blocks this in dev, we fallback to mock data
-      if (!res.ok) throw new Error("Tarmoq xatosi");
-
-      const responseText = await res.text();
-      // Google Apps Script usually wraps in JSON or redirect, so parse text
-      const result = JSON.parse(responseText);
-
+      if (!res.ok) throw new Error("Network error");
+      const result = JSON.parse(await res.text());
       if (result.success) {
         setRooms(result.data.rooms || []);
         setUsers(result.data.users || []);
         setAnalytics(result.data.analytics || []);
       }
     } catch (e) {
-      console.warn("GAS CORS error or invalid link. Using mock data for Vite dev mode.", e);
+      console.warn("GAS CORS error or invalid link. Using mock data.", e);
       setRooms([
         { id: '101', status: 'free', occupant: null, time: null },
-        { id: '102', status: 'occupied', occupant: 'Alisher Navoiy', time: '08:30' },
+        { id: '102', status: 'occupied', occupant: 'Alisher Navoiy(Oqituvchi)', time: '08:30' },
         { id: '202', status: 'occupied', occupant: 'Mirzo Ulugbek (Talaba)', time: '09:00' }
       ]);
       setUsers([
@@ -68,10 +65,6 @@ function App() {
       ]);
     }
     if (showMainLoader) setLoading(false);
-  };
-
-  const handleSearch = (e) => {
-    setSearch(e.target.value.toLowerCase());
   };
 
   const filteredRooms = rooms.filter(
@@ -85,69 +78,46 @@ function App() {
 
   const openModal = (roomId) => {
     setSelectedRoom(roomId);
-    setOccupant('');
-    setRole('');
-    setDuration('');
-    setSuggestions(users.map(u => u.name));
+    setOccupant(null);
+    setRole('teacher');
+    setDuration(2);
     setQrOpen(false);
     setModalOpen(true);
   };
 
   const closeBtn = () => {
     setModalOpen(false);
-    if (qrOpen) setQrOpen(false);
-  };
-
-  const handleOccupantInput = (e) => {
-    const val = e.target.value;
-    setOccupant(val);
-    const matches = users.filter((u) => u.name.toLowerCase().includes(val.toLowerCase()));
-    setSuggestions(matches.map(m => m.name));
-  };
-
-  const selectSuggestion = (name) => {
-    const trimmedName = name.trim();
-    setOccupant(trimmedName);
-    if (trimmedName.toLowerCase().includes('talaba')) {
-      setRole('student');
-    } else {
-      setRole('teacher');
-    }
-    setSuggestions([]);
+    setQrOpen(false);
   };
 
   const handleQRScan = (scannedId) => {
     const sId = String(scannedId).trim();
-    const foundUser = users.find(u => u.id === sId);
+    const foundUser = users.find(u => u.id === sId || u.name.toLowerCase().includes(sId.toLowerCase()));
     if (foundUser) {
-      setSuggestions([]); // Clear first
-      selectSuggestion(foundUser.name);
+      handleUserSelect(foundUser.name);
       setQrOpen(false);
+      message.success(`${foundUser.name} tanlandi`);
     } else {
-      // If it's not a known ID, maybe it's the name itself?
-      const foundByName = users.find(u => u.name.toLowerCase().includes(sId.toLowerCase()));
-      if (foundByName) {
-        setSuggestions([]); // Clear first
-        selectSuggestion(foundByName.name);
-        setQrOpen(false);
-      } else {
-        alert("Topilmadi: " + sId);
-      }
+      message.error("Topilmadi: " + sId);
     }
   };
 
-  const showToastMsg = (msg) => {
-    setToast({ show: true, message: msg });
-    setTimeout(() => setToast({ show: false, message: '' }), 3000);
+  const handleUserSelect = (value) => {
+    setOccupant(value);
+    if (value.toLowerCase().includes('talaba')) {
+      setRole('student');
+    } else {
+      setRole('teacher');
+    }
   };
 
   const confirmIssue = async () => {
-    if (!users.some(u => u.name === occupant)) {
-      alert("Iltimos, ro'yxatdan xodim yoki talabani tanlang!");
+    if (!occupant) {
+      message.warning("Iltimos, xodim yoki talabani tanlang!");
       return;
     }
     if (role === 'student' && !duration) {
-      alert("Iltimos, kalit necha soatga olinayotganini kiriting!");
+      message.warning("Iltimos, muddatni kiriting!");
       return;
     }
 
@@ -169,14 +139,13 @@ function App() {
 
       const data = await res.json();
       if (data.success) {
-        showToastMsg(data.message);
+        message.success(data.message);
         fetchData();
         closeBtn();
       } else {
-        alert(data.message || "Xatolik yuz berdi");
+        message.error(data.message || "Xatolik yuz berdi");
       }
     } catch (e) {
-      // Mock logic for local testing
       setTimeout(() => {
         setRooms(rooms.map(r =>
           r.id === selectedRoom
@@ -184,7 +153,7 @@ function App() {
             : r
         ));
         closeBtn();
-        showToastMsg('Sinov: xona band qilindi!');
+        message.success('Sinov: xona band qilindi!');
       }, 500);
     } finally {
       setActionLoading(false);
@@ -192,379 +161,333 @@ function App() {
   };
 
   const receiveKey = async (roomId) => {
-    if (!window.confirm(`Haqiqatan ham ${roomId}-xona kaliti qaytarilmoqdami (xona bo'shatilmoqdami)?`)) return;
-
-    try {
-      const res = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'checkIn', roomId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchData();
-        showToastMsg(data.message);
+    Modal.confirm({
+      title: "Kalitni qabul qilish",
+      content: `Haqiqatan ham ${roomId}-xona kaliti qaytarilmoqdami?`,
+      okText: 'Ha, qaytarildi',
+      cancelText: 'Bekor qilish',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const res = await fetch(GAS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'checkIn', roomId })
+          });
+          const data = await res.json();
+          if (data.success) {
+            fetchData();
+            message.success(data.message);
+          }
+        } catch (e) {
+          setRooms(rooms.map(r => r.id === roomId ? { ...r, status: 'free', occupant: null, time: null } : r));
+          message.success("Sinov orqali қайтарилди!");
+        }
       }
-    } catch (e) {
-      // Mock
-      setRooms(rooms.map(r => r.id === roomId ? { ...r, status: 'free', occupant: null, time: null } : r));
-      showToastMsg("Sinov orqali qaytarildi!");
-    }
+    });
   };
 
-  return (
-    <div className="layout">
-      <header className="header" style={{ padding: 0 }}>
-        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px' }}>
-          <div className="logo">
-            <LayoutDashboard className="logo-icon" size={24} />
-            <span className="logo-text">Raqamli Kalitxona</span>
+  const columns = [
+    {
+      title: 'Xona',
+      dataIndex: 'id',
+      key: 'id',
+      width: '12%',
+      render: (text) => <strong style={{ fontSize: 16 }}>{text}</strong>,
+    },
+    {
+      title: 'Holati',
+      dataIndex: 'status',
+      key: 'status',
+      width: '15%',
+      render: (status) => (
+        <Tag color={status === 'free' ? 'success' : 'error'} className="status-tag">
+          {status === 'free' ? "BO'SH" : 'BAND'}
+        </Tag>
+      ),
+    },
+    {
+      title: "Mas'ul shaxs",
+      dataIndex: 'occupant',
+      key: 'occupant',
+      render: (occupant) => occupant ? <span style={{ fontWeight: 500 }}>{occupant}</span> : <span style={{ color: '#aaa', fontStyle: 'italic' }}>-</span>,
+    },
+    {
+      title: 'Vaqti / Muddati',
+      dataIndex: 'time',
+      key: 'time',
+      width: '20%',
+      render: (time, record) => {
+        if (record.status === 'free') return <span style={{ color: '#aaa' }}>-</span>;
+        
+        let overdueEl = null;
+        if (record.duration) {
+          const durMatch = String(record.duration).match(/(\d+)/);
+          if (durMatch && time) {
+            const durHours = parseInt(durMatch[1], 10);
+            const parts = String(time).split(':');
+            if (parts.length >= 2) {
+              const now = new Date();
+              let issueTime = new Date();
+              issueTime.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+              if (issueTime > now) issueTime.setDate(issueTime.getDate() - 1);
+              
+              const dueTime = new Date(issueTime.getTime() + durHours * 60 * 60 * 1000);
+              if (now > dueTime) {
+                const diffMins = Math.floor((now - dueTime) / 60000);
+                overdueEl = <div style={{ color: '#ef4444', fontSize: '12px', fontWeight: 600, marginTop: 4 }}>⚠️ {Math.floor(diffMins / 60)}s {diffMins % 60}m kech!</div>;
+              } else {
+                overdueEl = <div style={{ color: '#64748b', fontSize: '12px', marginTop: 2 }}>Muddati: {record.duration}</div>;
+              }
+            }
+          }
+        }
+        
+        return (
+          <div style={{ lineHeight: '1.2' }}>
+            <span style={{ fontSize: 13 }}>{time} da lydi</span>
+            {overdueEl}
           </div>
-          <div className="nav-tabs">
-            <button className={`nav-btn ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>
-              <Users size={18} /> <span>Kalitlar</span>
-            </button>
-            <button className={`nav-btn ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>
-              <BarChart3 size={18} /> <span>Monitoring</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="container">
-        {view === 'analytics' ? (
-          <AnalyticsDashboard analytics={analytics} rooms={rooms} />
+        );
+      },
+    },
+    {
+      title: 'Amal',
+      key: 'action',
+      width: '15%',
+      render: (_, record) => (
+        record.status === 'free' ? (
+          <Button type="primary" onClick={() => openModal(record.id)} style={{ borderRadius: 8 }}>
+            Band qilish
+          </Button>
         ) : (
-          <>
-            <div className="controls">
-              <div className="search-box">
-                <Search className="search-icon" size={18} />
-                <input
-                  type="text"
-                  placeholder="Xona yoki xodim/talabani qidirish..."
-                  value={search}
-                  onChange={handleSearch}
-                  className="search-input"
+          <Button danger onClick={() => receiveKey(record.id)} style={{ borderRadius: 8 }}>
+            Bo'shatish
+          </Button>
+        )
+      ),
+    },
+  ];
+
+  return (
+    <ConfigProvider
+      theme={{
+        token: {
+          fontFamily: "'Outfit', 'Inter', sans-serif",
+          colorPrimary: '#1e40af',
+          borderRadius: 12,
+        },
+        components: {
+          Button: {
+            controlHeight: 40,
+            borderRadius: 8,
+          },
+        }
+      }}
+    >
+      <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
+        <Header className="header-glass" style={{ padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="brand-title">
+            <DashboardOutlined style={{ color: '#1e40af' }} />
+            Raqamli Kalitxona
+          </div>
+          <Menu 
+            mode="horizontal" 
+            selectedKeys={[view]} 
+            onClick={(e) => setView(e.key)}
+            style={{ border: 'none', background: 'transparent', width: 250, justifyContent: 'flex-end', fontWeight: 600 }}
+            items={[
+              { key: 'list', icon: <KeyOutlined />, label: 'Kalitlar' },
+              { key: 'analytics', icon: <BarChartOutlined />, label: 'Monitoring' },
+            ]}
+          />
+        </Header>
+
+        <Content className="main-container animate-fade-in">
+          {view === 'list' ? (
+            <>
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col xs={24} md={12}>
+                  <Input 
+                    size="large" 
+                    placeholder="Xona yoki shaxs bo'yicha qidirish..." 
+                    prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value.toLowerCase())}
+                    style={{ borderRadius: 12, border: '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}
+                  />
+                </Col>
+                <Col xs={24} md={12} style={{ display: 'flex', gap: 16, justifyContent: 'flex-end' }}>
+                  <Card size="small" className="stat-card" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+                    <Statistic title="Bo'sh Xonalar" value={freeCount} valueStyle={{ color: '#059669', fontWeight: 800 }} prefix={<div className="dot free" style={{ display: 'inline-block', marginRight: 5 }}/>} />
+                  </Card>
+                  <Card size="small" className="stat-card" style={{ background: '#fef2f2', borderColor: '#fecaca' }}>
+                    <Statistic title="Band Xonalar" value={occupiedCount} valueStyle={{ color: '#dc2626', fontWeight: 800 }} prefix={<div className="dot occupied" style={{ display: 'inline-block', marginRight: 5 }}/>} />
+                  </Card>
+                  <Button size="large" icon={<ReloadOutlined />} onClick={() => fetchData(true)} style={{ alignSelf: 'center', height: '100%' }} />
+                </Col>
+              </Row>
+
+              <div className="glass-card table-glass" style={{ padding: 1, overflow: 'hidden' }}>
+                <Table 
+                  columns={columns} 
+                  dataSource={filteredRooms} 
+                  rowKey={(record, index) => `${record.id}-${index}`}
+                  loading={loading}
+                  pagination={false}
+                  rowClassName={(record) => record.status === 'occupied' ? 'row-occupied' : ''}
                 />
               </div>
-              <div className="stats">
-                <div className="stat">
-                  <div className="dot free"></div> Bo'sh: {freeCount}
-                </div>
-                <div className="stat">
-                  <div className="dot occupied"></div> Band: {occupiedCount}
-                </div>
+            </>
+          ) : (
+            <AnalyticsDashboard analytics={analytics} />
+          )}
+        </Content>
+
+        <Modal
+          title={`Xonani band qilish - ${selectedRoom}`}
+          open={modalOpen}
+          onCancel={closeBtn}
+          footer={null}
+          destroyOnClose
+          width={450}
+        >
+          <div style={{ marginTop: 20 }}>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <label style={{ fontWeight: 600 }}>Mas'ul shaxs (Xodim/Talaba)</label>
+                <Button type="link" size="small" icon={<CameraOutlined />} onClick={() => setQrOpen(!qrOpen)}>QR Skaner</Button>
               </div>
-            </div>
-
-            {loading ? (
-              <div className="loader-container">
-                <div className="spinner"></div>
-                <p>Ma'lumotlar yuklanmoqda...</p>
-              </div>
-            ) : filteredRooms.length === 0 ? (
-              <div className="loader-container">
-                <Info size={32} style={{ marginBottom: 10, color: 'var(--text-muted)' }} />
-                <p>Xonalar topilmadi.</p>
-              </div>
-            ) : (
-              <div className="table-container">
-                <table className="rooms-table">
-                  <thead>
-                    <tr>
-                      <th>Xona</th>
-                      <th>Holat</th>
-                      <th>Mas'ul shaxs</th>
-                      <th>Vaqti / Muddati</th>
-                      <th>Amal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRooms.map((room) => {
-                      const isFree = room.status === 'free';
-                      let overdueEl = null;
-
-                      if (!isFree && room.duration) {
-                        const durMatch = String(room.duration).match(/(\d+)/);
-                        if (durMatch && room.time) {
-                          const durHours = parseInt(durMatch[1], 10);
-                          const parts = String(room.time).split(':');
-                          if (parts.length >= 2) {
-                            const hh = parseInt(parts[0], 10);
-                            const mm = parseInt(parts[1], 10);
-
-                            const now = new Date();
-                            let issueTime = new Date();
-                            issueTime.setHours(hh, mm, 0, 0);
-
-                            if (issueTime > now) {
-                              issueTime.setDate(issueTime.getDate() - 1);
-                            }
-
-                            const dueTime = new Date(issueTime.getTime() + durHours * 60 * 60 * 1000);
-
-                            if (now > dueTime) {
-                              const diffMins = Math.floor((now - dueTime) / 60000);
-                              const oHr = Math.floor(diffMins / 60);
-                              const oMin = diffMins % 60;
-                              const msg = oHr > 0 ? `${oHr}s ${oMin}m kechikdi!` : `${oMin}m kechikdi!`;
-                              overdueEl = <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: 600, marginTop: 4 }}>⚠️ {msg}</div>;
-                            } else {
-                              overdueEl = <div style={{ color: '#6b7280', fontSize: '12px', marginTop: 2 }}>Muddati: {room.duration}</div>;
-                            }
-                          }
-                        }
-                      }
-
-                      return (
-                        <tr key={room.id} className={isFree ? 'row-free' : 'row-occupied'}>
-                          <td className="col-room">{room.id}</td>
-                          <td>
-                            <span className={`badge ${isFree ? 'free' : 'occupied'}`}>
-                              {isFree ? "Bo'sh" : 'Band'}
-                            </span>
-                          </td>
-                          <td className="col-occupant">{isFree ? <span className="dimmed">-</span> : <span className="occupant-name">{room.occupant}</span>}</td>
-                          <td>
-                            {isFree ? <span className="dimmed">-</span> : (
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span className="occupant-time">{room.time} da band qilindi</span>
-                                {overdueEl}
-                              </div>
-                            )}
-                          </td>
-                          <td className="col-action">
-                            {isFree ? (
-                              <button className="btn-sm btn-primary" onClick={() => openModal(room.id)}>Band qilish</button>
-                            ) : (
-                              <button className="btn-sm btn-outline" onClick={() => receiveKey(room.id)}>Bo'shatish</button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </main>
-
-      {modalOpen && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div className="room-id-circle">{selectedRoom}</div>
-                <div>
-                  <h2 style={{ fontSize: '18px', lineHeight: 1 }}>Xonani band qilish</h2>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 4 }}>Barcha ma'lumotlarni tekshiring</p>
-                </div>
-              </div>
-              <button onClick={closeBtn} className="icon-btn"><X size={24} /></button>
-            </div>
-
-            <div className="form-group">
-              <label>Xodim yoki Talaba (Ro'yxatdan tanlang)</label>
-              {!users.some(u => u.name === occupant) ? (
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ position: 'relative', flex: 1 }}>
-                    <input
-                      type="text"
-                      value={occupant}
-                      onChange={handleOccupantInput}
-                      placeholder="Qidirish yoki skanerlang..."
-                      className="input-field"
-                    />
-                    {suggestions.length > 0 && !qrOpen && (
-                      <div className="suggestions">
-                        {suggestions.map((s, idx) => (
-                          <div key={`${s}-${idx}`} className="suggestion-item" onClick={() => selectSuggestion(s)}>
-                            {s}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    className="btn-outline"
-                    style={{ width: 'auto', padding: '0 15px' }}
-                    onClick={() => setQrOpen(!qrOpen)}
-                  >
-                    {qrOpen ? <CameraOff size={20} /> : <QrCode size={20} />}
-                  </button>
-                </div>
+              
+              {!qrOpen ? (
+                <Select
+                  showSearch
+                  size="large"
+                  style={{ width: '100%' }}
+                  placeholder="Shaxsni qidirish..."
+                  value={occupant}
+                  onChange={handleUserSelect}
+                  options={Array.from(new Set(users.map(u => u.name))).map((name, i) => ({ key: `user-${i}`, label: name, value: name }))}
+                  filterOption={(input, option) =>
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                />
               ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb', padding: '10px 14px', borderRadius: 6, border: '1px solid #d1d5db' }}>
-                  <span style={{ fontWeight: 600, color: '#111827' }}>{occupant}</span>
-                  <button onClick={() => { setOccupant(''); setSuggestions(users.map(u => u.name)); }} className="icon-btn" style={{ padding: 4, display: 'flex' }}>
-                    <X size={18} />
-                  </button>
+                <div className="qr-scanner-container">
+                  <QRScanner onScan={handleQRScan} />
                 </div>
               )}
             </div>
 
-            {qrOpen && !users.some(u => u.name === occupant) && <QRScanner onScan={handleQRScan} />}
-
-
             {role === 'student' && (
-              <div className="form-group">
-                <label>Necha soatga?</label>
-                <input
-                  type="number"
-                  min="1" max="10"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  className="input-field"
-                  placeholder="Masalan: 2"
+              <div style={{ marginBottom: 24, animation: 'fadeIn 0.3s ease-in' }}>
+                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8 }}>Buxgalteriya/Kalit olish muddati (Soat)</label>
+                <InputNumber 
+                  min={1} 
+                  max={24} 
+                  size="large"
+                  value={duration} 
+                  onChange={setDuration} 
+                  style={{ width: '100%' }} 
                 />
               </div>
             )}
 
-            <button className="btn-primary" onClick={confirmIssue} disabled={actionLoading} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-              {actionLoading ? <div className="spinner sm"></div> : 'Tasdiqlash'}
-            </button>
+            <Button 
+              type="primary" 
+              size="large" 
+              block 
+              loading={actionLoading} 
+              onClick={confirmIssue}
+              style={{ marginTop: 15 }}
+            >
+              Tasdiqlash
+            </Button>
           </div>
-        </div>
-      )}
-
-      <div className={`toast ${toast.show ? 'show' : ''}`}>
-        <Check size={18} /> {toast.message}
-      </div>
-    </div>
+        </Modal>
+      </Layout>
+    </ConfigProvider>
   );
 }
 
 function QRScanner({ onScan }) {
   useEffect(() => {
     const html5QrCode = new Html5Qrcode("reader");
-
     const startScanner = async () => {
       try {
         await html5QrCode.start(
           { facingMode: "environment" },
           { fps: 20, qrbox: { width: 220, height: 220 } },
-          (decodedText) => {
-            html5QrCode.stop().then(() => onScan(decodedText)).catch(() => { });
-          },
+          (decoded) => { html5QrCode.stop().then(() => onScan(decoded)).catch(()=>{}); },
           undefined
         );
       } catch (err) {
-        // Fallback to user camera if environment fails
         html5QrCode.start(
           { facingMode: "user" },
           { fps: 20, qrbox: { width: 220, height: 220 } },
-          (decodedText) => {
-            html5QrCode.stop().then(() => onScan(decodedText)).catch(() => { });
-          },
+          (decoded) => { html5QrCode.stop().then(() => onScan(decoded)).catch(()=>{}); },
           undefined
-        ).catch(innerErr => console.error("Scanner error", innerErr));
+        ).catch(e => console.error("Scanner failed", e));
       }
     };
-
     startScanner();
-
-    return () => {
-      if (html5QrCode.isScanning) {
-        html5QrCode.stop().catch(err => console.warn(err));
-      }
-    };
+    return () => { if (html5QrCode.isScanning) { html5QrCode.stop().catch(()=>{}); } };
   }, [onScan]);
-
-  return (
-    <div style={{ marginBottom: 15 }}>
-      <div id="reader" style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #d1d5db', background: '#000' }}></div>
-    </div>
-  );
+  return <div id="reader" style={{ width: '100%' }}></div>;
 }
 
 function AnalyticsDashboard({ analytics }) {
   const roomUsage = (analytics?.roomUsage || []).sort((a, b) => b.count - a.count);
-  const dailyUsage = (analytics?.dailyUsage || []).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 7); // Oxirgi 7 kun
-  const userUsage = (analytics?.userUsage || []).sort((a, b) => b.count - a.count).slice(0, 5); // Top 5 user
-
-  const topRooms = roomUsage.slice(0, 5);
   const totalUsage = roomUsage.reduce((sum, item) => sum + item.count, 0);
 
   return (
-    <div className="analytics-view">
-      <div className="analytics-header">
-        <div className="analytics-card main">
-          <PieChart size={24} color="var(--primary)" />
-          <div className="card-info">
-            <span className="label">Umumiy foydalanishlar</span>
-            <span className="value">{totalUsage} marta</span>
-          </div>
-        </div>
-        <div className="analytics-card">
-          <Users size={20} color="var(--status-free)" />
-          <div className="card-info">
-            <span className="label">Eng faol xodim</span>
-            <span className="value" style={{ fontSize: '14px' }}>{userUsage[0]?.name || '-'}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="category-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 15, marginTop: 25 }}>
-        {(analytics?.categoryUsage || []).map((cat) => (
-          <div key={cat.name} className="analytics-card" style={{ flexDirection: 'column', textAlign: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 13, color: '#6b7280' }}>{cat.name}lar</span>
-            <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)' }}>{cat.count}</span>
-          </div>
+    <div className="animate-fade-in">
+      <Row gutter={[20, 20]}>
+        <Col xs={24} md={8}>
+          <Card className="glass-card stat-card" style={{ borderLeft: '4px solid #1e40af' }}>
+            <Statistic title={<span style={{ fontWeight: 600 }}>Umumiy Kalit Olinishi</span>} value={totalUsage} suffix="marta" />
+          </Card>
+        </Col>
+        {(analytics?.categoryUsage || []).map((cat, idx) => (
+          <Col xs={12} md={8} key={idx}>
+            <Card className="glass-card stat-card">
+              <Statistic title={cat.name} value={cat.count} />
+            </Card>
+          </Col>
         ))}
-      </div>
+      </Row>
 
-      <div className="analytics-grid" style={{ marginTop: 25 }}>
-        <div className="chart-section">
-          <h3>📊 Eng faol xonalar (Top 5)</h3>
-          <div className="bar-chart">
-            {topRooms.map((item) => {
-              const maxCount = roomUsage[0]?.count || 1;
-              const percentage = (item.count / maxCount) * 100;
-              return (
-                <div key={item.id} className="bar-row">
-                  <div className="bar-label">Xona {item.id}</div>
-                  <div className="bar-container">
-                    <div className="bar-fill" style={{ width: `${percentage}%` }}></div>
-                    <span className="bar-value">{item.count}</span>
-                  </div>
+      <Row gutter={[20, 20]} style={{ marginTop: 20 }}>
+        <Col xs={24} md={12}>
+          <Card className="glass-card" title="Eng faol xonalar (Top 5)">
+            {roomUsage.slice(0, 5).map(item => (
+              <div key={item.id} style={{ marginBottom: 15 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span>Xona {item.id}</span>
+                  <strong>{item.count}</strong>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="chart-section">
-          <h3>📅 Kunlik dinamika (7 kun)</h3>
-          <div className="bar-chart">
-            {dailyUsage.length > 0 ? dailyUsage.map((item) => (
-              <div key={item.date} className="bar-row">
-                <div className="bar-label" style={{ width: 90, fontSize: 11 }}>{item.date}</div>
-                <div className="bar-container">
-                  <div className="bar-fill" style={{ width: `${(item.count / (Math.max(...dailyUsage.map(d => d.count)) || 1)) * 100}%`, background: '#10b981' }}></div>
-                  <span className="bar-value">{item.count}</span>
+                <div style={{ height: 8, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ width: `${(item.count / (roomUsage[0]?.count || 1)) * 100}%`, height: '100%', background: '#3b82f6', borderRadius: 4 }} />
                 </div>
               </div>
-            )) : <p style={{ color: '#9ca3af', fontSize: 13 }}>Ma'lumot mavjud emas</p>}
-          </div>
-        </div>
-      </div>
-
-      <div className="chart-section" style={{ marginTop: 25 }}>
-        <h3>👤 Eng ko'p kalit olganlar (Top 5)</h3>
-        <div className="user-ranking">
-          {userUsage.map((user, idx) => (
-            <div key={idx} className="user-rank-item">
-              <div className="rank-num">{idx + 1}</div>
-              <div className="user-name">{user.name}</div>
-              <div className="user-count">{user.count} marta</div>
-            </div>
-          ))}
-        </div>
-      </div>
+            ))}
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card className="glass-card" title="Eng ko'p kalit olganlar (Top 5)">
+            {(analytics?.userUsage || []).sort((a, b) => b.count - a.count).slice(0, 5).map((user, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 15, padding: '12px', background: '#f8fafc', borderRadius: 12, marginBottom: 10 }}>
+                <div style={{ width: 30, height: 30, background: '#1e40af', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{idx + 1}</div>
+                <div style={{ flex: 1, fontWeight: 600 }}>{user.name}</div>
+                <div style={{ color: '#64748b' }}>{user.count} marta</div>
+              </div>
+            ))}
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 }
 
 export default App;
+
