@@ -22,6 +22,26 @@ const { Header, Content } = Layout;
 const { Panel } = Collapse;
 const { Title, Text } = Typography;
 
+function QRScannerComponent({ onScan, onClose }) {
+  useEffect(() => {
+    const scanner = new Html5Qrcode("qr-reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    scanner.start({ facingMode: "environment" }, config, (text) => {
+      onScan(text);
+    }).catch(err => {
+      console.error("Scanner error:", err);
+      message.error("Kameraga ulanib bo'lmadi!");
+    });
+
+    return () => {
+      scanner.stop().catch(e => console.warn("Stop error:", e));
+    };
+  }, []);
+
+  return <div id="qr-reader" style={{ width: '100%', borderRadius: '12px', overflow: 'hidden' }}></div>;
+}
+
 export default function AdminApp({ onLogout }) {
   const [rooms, setRooms] = useState([]);
   const [users, setUsers] = useState([]);
@@ -162,9 +182,20 @@ export default function AdminApp({ onLogout }) {
       title: "Qabul qilish?", onOk: async () => {
         await supabase.from('rooms').update({ status: 'free', occupant: null, time: null, duration: null }).eq('id', roomId);
         await supabase.from('logs').insert([{ room_id: String(roomId), occupant: o, action: 'Qaytarildi', duration: '-' }]);
-        message.success("Qabul qilindi!"); fetchInitialData();
       }
     });
+  };
+
+  const handleQRScan = (id) => {
+    const found = users.find(u => u.id === id);
+    if (found) {
+      setOccupant(`${found.name} (${found.role === 'teacher' ? 'O\'qituvchi' : found.role === 'student' ? 'Talaba' : 'Hodim'})`);
+      setRole(found.role);
+      setQrOpen(false);
+      message.success(`${found.name} aniqlandi.`);
+    } else {
+      message.error("ID topilmadi! (" + id + ")");
+    }
   };
 
   if (isBlocked) {
@@ -245,8 +276,8 @@ export default function AdminApp({ onLogout }) {
         </div>
       </Modal>
 
-      <Modal title="QR-kod Skaner" open={qrOpen} onCancel={() => setQrOpen(false)} footer={null} width={400} destroyOnClose afterOpenChange={(open) => { if (open) { const scanner = new Html5Qrcode("qr-reader"); scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, handleQRScan); return () => scanner.stop(); } }}>
-        <div id="qr-reader" style={{ width: '100%' }}></div>
+      <Modal title="QR-kod Skaner" open={qrOpen} onCancel={() => setQrOpen(false)} footer={null} width={400} destroyOnClose centered>
+        {qrOpen && <QRScannerComponent onScan={handleQRScan} onClose={() => setQrOpen(false)} />}
       </Modal>
 
       <Modal title="Ma'lumotlarni tahrirlash" open={editModalOpen} onOk={updateUser} onCancel={() => setEditModalOpen(false)} okText="Saqlash">
