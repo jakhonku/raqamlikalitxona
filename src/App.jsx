@@ -12,7 +12,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import './index.css';
 
 const { Header, Content } = Layout;
-const GAS_URL = "https://script.google.com/macros/s/AKfycby0BiJF5vDp1jtumKwXi2Mdn39sg9I_hVWTaV5Syr1_KmNk7FnAg2LjBPMQ0xpO9tV8YQ/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzYbnRffsZUFAOdxvPmXJHpB4Klr7dsiHuG9OlDK5-5dd1Ae306dntS4vsxXNh8OBUyJw/exec";
 
 function App() {
   const [rooms, setRooms] = useState([]);

@@ -2,7 +2,23 @@
  * Raqamli Kalitxona - Google Apps Script Backend (API REST)
  */
 
+// Agar script jadvallar fayliga bog'langan (bound) bo'lsa, getActiveSpreadsheet() ishlatiladi.
+// Aks holda SHEET_ID ni quyidagiga kiritishingiz kerak.
 const SHEET_ID = 'BU_YERGA_GOOGLE_SHEET_ID_KIRITILADI';
+
+function getSS() {
+  try {
+    // Avval bog'langan jadvalni tekshiramiz
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) return ss;
+  } catch (e) {}
+  
+  // Agar bog'lanmagan bo'lsa, ID orqali ochamiz
+  if (SHEET_ID && SHEET_ID !== 'BU_YERGA_GOOGLE_SHEET_ID_KIRITILADI') {
+    return SpreadsheetApp.openById(SHEET_ID);
+  }
+  throw new Error("Spreadsheet topilmadi! Iltimos SHEET_ID ni Code.gs fayliga kiriting.");
+}
 
 // JSON javob berish uchun yordamchi funksiya
 function jsonResponse(data) {
@@ -12,17 +28,8 @@ function jsonResponse(data) {
 
 /**
  * Handle GET requests (Ma'lumotlarni o'qish)
- * Masalan: WebApp_URL?action=getRooms
  */
 function doGet(e) {
-  // CORS issues for simple GET: JSONP or directly returns JSON
-  // In pure fetch mode without API Gateway, standard GET from browser could block CORS
-  // So returning raw JSON is best with fetch(..., {mode: 'cors'}) in frontend client if configured correctly.
-  
-  // NOTE: Due to Vercel/Frontend needing CORS on normal fetch, 
-  // Google automatically handles standard GET requests if you navigate to it or use 'no-cors' mode (but can't read 'no-cors')
-  // For proper fetching, standard jsonResponse is needed. 
-  
   try {
     const action = e.parameter.action;
     
@@ -31,7 +38,7 @@ function doGet(e) {
     } else if (action === 'getUsers') {
       return jsonResponse({ success: true, data: getUsersList() });
     } else {
-      // Ikkalasini ham beradi
+      // Barcha ma'lumotlarni beradi (action=getAll yoki boshqa)
       return jsonResponse({ 
         success: true, 
         data: {
@@ -48,11 +55,9 @@ function doGet(e) {
 
 /**
  * Handle POST requests (Ma'lumotlarni yozish)
- * Frontend'dan fetch('/', { method: 'POST', body: JSON.stringify({...}) }) orqali keladi
  */
 function doPost(e) {
   try {
-    // Agar JSON kelsa
     const payload = JSON.parse(e.postData.contents);
     const action = payload.action;
     
@@ -71,9 +76,11 @@ function doPost(e) {
 }
 
 function getRoomsData() {
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Xonalar');
-  const data = sheet.getDataRange().getDisplayValues();
+  const ss = getSS();
+  const sheet = ss.getSheetByName('Xonalar');
+  if (!sheet) return [];
   
+  const data = sheet.getDataRange().getDisplayValues();
   let rooms = [];
   for (let i = 1; i < data.length; i++) {
     rooms.push({
@@ -88,9 +95,11 @@ function getRoomsData() {
 }
 
 function checkOutKey(roomId, occupantName, role = 'teacher', duration = null) {
-  const SS = SpreadsheetApp.openById(SHEET_ID);
-  const roomsSheet = SS.getSheetByName('Xonalar');
-  const logsSheet = SS.getSheetByName('Loglar');
+  const ss = getSS();
+  const roomsSheet = ss.getSheetByName('Xonalar');
+  const logsSheet = ss.getSheetByName('Loglar');
+  
+  if (!roomsSheet || !logsSheet) return { success: false, message: "Jadvallar topilmadi!" };
   
   const data = roomsSheet.getDataRange().getDisplayValues();
   const now = new Date();
@@ -103,7 +112,7 @@ function checkOutKey(roomId, occupantName, role = 'teacher', duration = null) {
       roomsSheet.getRange(i + 1, 2).setValue('occupied');
       roomsSheet.getRange(i + 1, 3).setValue(occupantName);
       roomsSheet.getRange(i + 1, 4).setValue(timeStr);
-      if (role === 'student' && duration) {
+      if (duration) {
         roomsSheet.getRange(i + 1, 5).setValue(duration + ' soat');
       } else {
         roomsSheet.getRange(i + 1, 5).clearContent();
@@ -119,7 +128,7 @@ function checkOutKey(roomId, occupantName, role = 'teacher', duration = null) {
       occupantName,
       'Olingan (Check-out)',
       dateStr,
-      (role === 'student' && duration) ? (duration + ' soat') : '-'
+      duration ? (duration + ' soat') : '-'
     ]);
     return { success: true, message: "Kalit muvaffaqiyatli berildi!" };
   } else {
@@ -128,9 +137,11 @@ function checkOutKey(roomId, occupantName, role = 'teacher', duration = null) {
 }
 
 function checkInKey(roomId) {
-  const SS = SpreadsheetApp.openById(SHEET_ID);
-  const roomsSheet = SS.getSheetByName('Xonalar');
-  const logsSheet = SS.getSheetByName('Loglar');
+  const ss = getSS();
+  const roomsSheet = ss.getSheetByName('Xonalar');
+  const logsSheet = ss.getSheetByName('Loglar');
+  
+  if (!roomsSheet || !logsSheet) return { success: false, message: "Jadvallar topilmadi!" };
   
   const data = roomsSheet.getDataRange().getDisplayValues();
   const now = new Date();
@@ -165,7 +176,7 @@ function checkInKey(roomId) {
 }
 
 function getUsersList() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = getSS();
   const categories = [
     { name: "O'qituvchilar", label: "O'qituvchi", idCol: 2 },
     { name: "Talabalar", label: "Talaba", idCol: 2 },
@@ -192,7 +203,7 @@ function getUsersList() {
 }
 
 function getAnalytics() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = getSS();
   const logsSheet = ss.getSheetByName('Loglar');
   if (!logsSheet) return { roomUsage: [], dailyUsage: [], userUsage: [], categoryUsage: [] };
   
@@ -233,41 +244,59 @@ function getAnalytics() {
 }
 
 /**
- * BIR MARTALIK ISHGA TUSHIRILADIGAN FUNKSIYA:
- * Ushbu funksiyani Code.gs da ishlatish orqali jadvallarni avtomatik tuzib olishingiz mumkin.
+ * SOZLASH FUNKSIYASI:
+ * Google Sheet'da barcha kerakli sahifalarni yaratadi.
+ * Code.gs'da ushbu funksiyani bir marta ishga tushiring.
  */
-function yangiJadvallarniQurish() {
+function setupSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. O'qituvchilar jadvali
+  // 1. Xonalar sahifasi
+  let rSheet = ss.getSheetByName("Xonalar");
+  if (!rSheet) rSheet = ss.insertSheet("Xonalar");
+  rSheet.clear();
+  rSheet.appendRow(["Xona ID", "Holati", "Mas'ul", "Vaqt", "Muddat"]);
+  rSheet.appendRow(["101", "free", "", "", ""]);
+  rSheet.appendRow(["102", "free", "", "", ""]);
+  rSheet.appendRow(["201", "free", "", "", ""]);
+  rSheet.appendRow(["202", "free", "", "", ""]);
+  rSheet.getRange("A1:E1").setFontWeight("bold").setBackground("#f0f0f0");
+  rSheet.autoResizeColumns(1, 5);
+  
+  // 2. Loglar sahifasi
+  let lSheet = ss.getSheetByName("Loglar");
+  if (!lSheet) lSheet = ss.insertSheet("Loglar");
+  lSheet.clear();
+  lSheet.appendRow(["Xona ID", "Shaxs", "Harakat", "Sana/Vaqt", "Izoh"]);
+  lSheet.getRange("A1:E1").setFontWeight("bold").setBackground("#f0f0f0");
+  lSheet.autoResizeColumns(1, 5);
+
+  // 3. O'qituvchilar
   let tSheet = ss.getSheetByName("O'qituvchilar");
   if (!tSheet) tSheet = ss.insertSheet("O'qituvchilar");
   tSheet.clear();
   tSheet.appendRow(["FISH", "Lavozimi", "ID"]);
-  tSheet.appendRow(["Alisher Navoiy", "Kafedra mudiri", "ID-001"]);
-  tSheet.appendRow(["Zahiriddin Muhammad Bobur", "Fizika o'qituvchisi", "ID-002"]);
+  tSheet.appendRow(["Alisher Navoiy", "Professor", "ID-001"]);
   tSheet.getRange("A1:C1").setFontWeight("bold");
   tSheet.autoResizeColumns(1, 3);
   
-  // 2. Talabalar jadvali
+  // 4. Talabalar
   let sSheet = ss.getSheetByName("Talabalar");
   if (!sSheet) sSheet = ss.insertSheet("Talabalar");
   sSheet.clear();
-  sSheet.appendRow(["FISH", "Yo'nalishi / Bosqich", "ID"]);
-  sSheet.appendRow(["Mirzo Ulug'bek", "Fizika - 2-bosqich", "ID-003"]);
-  sSheet.appendRow(["Abdulla Qodiriy", "Adabiyot - 1-bosqich", "ID-004"]);
+  sSheet.appendRow(["FISH", "Yo'nalish", "ID"]);
+  sSheet.appendRow(["Mirzo Ulugbek", "Astronomiya", "ID-002"]);
   sSheet.getRange("A1:C1").setFontWeight("bold");
   sSheet.autoResizeColumns(1, 3);
-  
-  // Eski Foydalanuvchilar o'chiriladi
-  const oldSheet = ss.getSheetByName("Foydalanuvchilar");
-  if (oldSheet) ss.deleteSheet(oldSheet);
-  
-  // 3. Hodimlar jadvali
+
+  // 5. Hodimlar
   let hSheet = ss.getSheetByName("Hodimlar");
   if (!hSheet) hSheet = ss.insertSheet("Hodimlar");
   hSheet.clear();
   hSheet.appendRow(["FISH", "Lavozimi", "ID"]);
+  hSheet.appendRow(["Abdulla Qodiriy", "Kutubxonachi", "ID-003"]);
+  hSheet.getRange("A1:C1").setFontWeight("bold");
+  hSheet.autoResizeColumns(1, 3);
 
-  Browser.msgBox("O'qituvchilar, Talabalar va Hodimlar jadvallari yaratildi!");
+  Browser.msgBox("Tizim tayyor! Barcha sahifalar (Xonalar, Loglar, O'qituvchilar, Talabalar, Hodimlar) yaratildi.");
 }
