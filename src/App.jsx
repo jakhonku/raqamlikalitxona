@@ -159,7 +159,7 @@ function App() {
             : r
         ));
         closeBtn();
-        showToastMsg('Sinov orqali berildi!');
+        showToastMsg('Sinov: xona band qilindi!');
       }, 500);
     } finally {
       setActionLoading(false);
@@ -167,7 +167,7 @@ function App() {
   };
 
   const receiveKey = async (roomId) => {
-    if (!window.confirm(`Haqiqatan ham ${roomId}-xona kaliti olinmoqdami?`)) return;
+    if (!window.confirm(`Haqiqatan ham ${roomId}-xona kaliti qaytarilmoqdami (xona bo'shatilmoqdami)?`)) return;
 
     try {
       const res = await fetch(GAS_URL, {
@@ -289,16 +289,16 @@ function App() {
                       <td>
                         {isFree ? <span className="dimmed">-</span> : (
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span className="occupant-time">{room.time} da olingan</span>
+                            <span className="occupant-time">{room.time} da band qilindi</span>
                             {overdueEl}
                           </div>
                         )}
                       </td>
                       <td className="col-action">
                         {isFree ? (
-                          <button className="btn-sm btn-primary" onClick={() => openModal(room.id)}>Berish</button>
+                          <button className="btn-sm btn-primary" onClick={() => openModal(room.id)}>Band qilish</button>
                         ) : (
-                          <button className="btn-sm btn-outline" onClick={() => receiveKey(room.id)}>Olish</button>
+                          <button className="btn-sm btn-outline" onClick={() => receiveKey(room.id)}>Bo'shatish</button>
                         )}
                       </td>
                     </tr>
@@ -314,7 +314,7 @@ function App() {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Kalitni berish: {selectedRoom}-xona</h2>
+              <h2>Xonani band qilish: {selectedRoom}-xona</h2>
               <button onClick={closeBtn} className="icon-btn"><X size={24} /></button>
             </div>
 
