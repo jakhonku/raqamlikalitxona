@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { 
   ConfigProvider, Layout, Menu, Input, Table, Tag, Button, 
   Modal, Card, Row, Col, Statistic, Select, InputNumber, 
-  message, Popconfirm, Divider, Progress, Empty
+  message, Popconfirm, Divider, Progress, Empty, Upload
 } from 'antd';
 import { 
   SearchOutlined, BarChartOutlined, KeyOutlined, 
   DashboardOutlined, ReloadOutlined, CameraOutlined, 
   UserAddOutlined, TeamOutlined, DeleteOutlined,
-  CalendarOutlined, TrophyOutlined
+  CalendarOutlined, TrophyOutlined, PlusOutlined, ApartmentOutlined, 
+  FileExcelOutlined, UploadOutlined
 } from '@ant-design/icons';
 import { Html5Qrcode } from 'html5-qrcode';
+import * as XLSX from 'xlsx';
 import { supabase } from './supabaseClient';
 import './index.css';
 
@@ -24,7 +26,6 @@ function App() {
   
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
-  
   const [occupant, setOccupant] = useState(null);
   const [role, setRole] = useState('teacher');
   const [duration, setDuration] = useState(2);
@@ -36,15 +37,13 @@ function App() {
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState('teacher');
+  const [newRoomId, setNewRoomId] = useState('');
 
   useEffect(() => {
     fetchInitialData();
     const roomsSub = supabase.channel('rooms').on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => fetchRooms()).subscribe();
     const usersSub = supabase.channel('users').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchUsers()).subscribe();
-    const logsSub = supabase.channel('logs').on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, () => {
-      if (view === 'analytics') fetchAnalytics();
-    }).subscribe();
-
+    const logsSub = supabase.channel('logs').on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, () => { if (view === 'analytics') fetchAnalytics(); }).subscribe();
     return () => {
       supabase.removeChannel(roomsSub);
       supabase.removeChannel(usersSub);
@@ -73,25 +72,21 @@ function App() {
   };
 
   const fetchAnalytics = async () => {
-    // Sizning bazangizdagi ustun nomlariga mosladik: room_id, occupant_name, action, duration
     const { data: logs } = await supabase.from('logs').select('*').eq('action', 'Olingan');
     if (!logs || logs.length === 0) {
       setAnalytics({ roomUsage: [], userUsage: [], categoryUsage: [], totalLogs: 0 });
       return;
     }
-
     let roomUsage = {}, userUsage = {}, categoryUsage = { "O'qituvchi": 0, "Talaba": 0, "Hodim": 0 };
     logs.forEach(log => {
       const rId = log.room_id || 'Xona?';
       const oName = log.occupant_name || 'Noma\'lum';
       roomUsage[rId] = (roomUsage[rId] || 0) + 1;
       userUsage[oName] = (userUsage[oName] || 0) + 1;
-      
       if (oName.includes("(O'qituvchi)")) categoryUsage["O'qituvchi"]++;
       else if (oName.includes("(Talaba)")) categoryUsage["Talaba"]++;
       else if (oName.includes("(Hodim)")) categoryUsage["Hodim"]++;
     });
-
     setAnalytics({
       totalLogs: logs.length,
       roomUsage: Object.keys(roomUsage).map(id => ({ id, count: roomUsage[id] })).sort((a,b) => b.count - a.count),
@@ -100,33 +95,89 @@ function App() {
     });
   };
 
+  const getNextUserIdNum = () => {
+    let maxNum = 1000;
+    users.forEach(u => { if (u.id.startsWith('RK-')) { const num = parseInt(u.id.split('-')[1], 10); if (!isNaN(num) && num > maxNum) maxNum = num; } });
+    return maxNum;
+  };
+
+  const importRoomsExcel = (file) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(sheet);
+      
+      const roomIds = json.map(row => {
+        const val = row[Object.keys(row).find(key => key.toLowerCase().includes('xona') || key.toLowerCase().includes('id') || key.toLowerCase().includes('room'))];
+        return val ? String(val).trim() : null;
+      }).filter(id => id);
+
+      if (roomIds.length === 0) return message.error("Excel faylida xona raqamlari topilmadi. Ustun nomi 'Xona' bo'lishi kerak.");
+
+      setLoading(true);
+      const payload = Array.from(new Set(roomIds)).map(id => ({ id, status: 'free' }));
+      const { error } = await supabase.from('rooms').insert(payload);
+      if (error) message.error("Ba'zi xonalar avval qo'shilgan, faqat yangilari qo'shildi.");
+      else message.success(`${payload.length} ta xona muvaffaqiyatli yuklandi!`);
+      setLoading(false);
+    };
+    reader.readAsArrayBuffer(file);
+    return false;
+  };
+
+  const importUsersExcel = (file) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(sheet);
+      
+      const names = json.map(row => {
+        const val = row[Object.keys(row).find(key => key.toLowerCase().includes('ism') || key.toLowerCase().includes('fish') || key.toLowerCase().includes('name'))];
+        return val ? String(val).trim() : null;
+      }).filter(n => n);
+
+      if (names.length === 0) return message.error("Excel faylida ismlar topilmadi. Ustun nomi 'Ism' yoki 'F.I.SH' bo'lishi kerak.");
+
+      setLoading(true);
+      let currentMax = getNextUserIdNum();
+      const payload = names.map((name, i) => ({ id: `RK-${currentMax + i + 1}`, name, role: newUserRole }));
+      const { error } = await supabase.from('users').insert(payload);
+      if (error) message.error("Yuklashda xatolik yuz berdi.");
+      else message.success(`${payload.length} ta foydalanuvchi yuklandi!`);
+      setLoading(false);
+    };
+    reader.readAsArrayBuffer(file);
+    return false;
+  };
+
   const addUser = async () => {
     if (!newUserName.trim()) return message.warning("Ismni kiriting!");
     setLoading(true);
     try {
-      let maxNum = 1000;
-      users.forEach(u => {
-        if (u.id.startsWith('RK-')) {
-          const num = parseInt(u.id.split('-')[1], 10);
-          if (!isNaN(num) && num > maxNum) maxNum = num;
-        }
-      });
-      const nextId = `RK-${maxNum + 1}`;
-      const { error } = await supabase.from('users').insert([{ id: nextId, name: newUserName.trim(), role: newUserRole }]);
+      const { error } = await supabase.from('users').insert([{ id: `RK-${getNextUserIdNum() + 1}`, name: newUserName.trim(), role: newUserRole }]);
       if (error) throw error;
       message.success("Foydalanuvchi qo'shildi!");
       setNewUserName('');
-    } catch (e) {
-      message.error("Xatolik: " + e.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { message.error(e.message); } finally { setLoading(false); }
   };
 
-  const deleteUser = async (id) => {
-    const { error } = await supabase.from('users').delete().eq('id', id);
-    if (!error) message.success("O'chirildi");
+  const addRoom = async () => {
+    if (!newRoomId.trim()) return message.warning("Xona raqamini kiriting!");
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('rooms').insert([{ id: newRoomId.trim(), status: 'free' }]);
+      if (error) throw error;
+      message.success("Xona qo'shildi!");
+      setNewRoomId('');
+    } catch (e) { message.error("Bunday xona avval qo'shilgan!"); } finally { setLoading(false); }
   };
+
+  const deleteUser = async (id) => { const { error } = await supabase.from('users').delete().eq('id', id); if (!error) message.success("O'chirildi"); };
+  const deleteRoom = async (id) => { const { error } = await supabase.from('rooms').delete().eq('id', id); if (!error) message.success("Xona o'chirildi"); };
 
   const confirmIssue = async () => {
     if (!occupant) return message.warning("Shaxsni tanlang!");
@@ -134,21 +185,9 @@ function App() {
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     try {
-      // 1. Xonalar jadvali
-      const { error: updateError } = await supabase.from('rooms').update({ 
-        status: 'occupied', occupant, time: timeStr, duration: role === 'student' ? `${duration} soat` : null 
-      }).eq('id', selectedRoom);
+      const { error: updateError } = await supabase.from('rooms').update({ status: 'occupied', occupant, time: timeStr, duration: role === 'student' ? `${duration} soat` : null }).eq('id', selectedRoom);
       if (updateError) throw updateError;
-      
-      // 2. Tarix (Logs) jadvali - Sizning ustun nomlaringizga moslab: room_id, occupant_name, action, duration
-      const { error: logError } = await supabase.from('logs').insert([{ 
-        room_id: String(selectedRoom), 
-        occupant_name: occupant, 
-        action: 'Olingan', 
-        duration: role === 'student' ? `${duration} soat` : '-' 
-      }]);
-      if (logError) console.error("Log write error:", logError);
-
+      await supabase.from('logs').insert([{ room_id: String(selectedRoom), occupant_name: occupant, action: 'Olingan', duration: role === 'student' ? `${duration} soat` : '-' }]);
       message.success("Kalit berildi!");
       setModalOpen(false);
     } catch (e) { message.error(e.message); } finally { setActionLoading(false); }
@@ -161,13 +200,7 @@ function App() {
       onOk: async () => {
         const { error } = await supabase.from('rooms').update({ status: 'free', occupant: null, time: null, duration: null }).eq('id', roomId);
         if (!error) {
-          // Qaytarilgandagi tarix
-          await supabase.from('logs').insert([{ 
-            room_id: String(roomId), 
-            occupant_name: currentOccupant, 
-            action: 'Qaytarildi',
-            duration: '-' 
-          }]);
+          await supabase.from('logs').insert([{ room_id: String(roomId), occupant_name: currentOccupant, action: 'Qaytarildi', duration: '-' }]);
           message.success("Kalit qabul qilindi!");
         }
       }
@@ -183,6 +216,7 @@ function App() {
             mode="horizontal" selectedKeys={[view]} onClick={(e) => setView(e.key)} style={{ border: 'none', background: 'transparent' }}
             items={[
               { key: 'list', icon: <KeyOutlined />, label: 'Kalitlar' },
+              { key: 'rooms_manage', icon: <ApartmentOutlined />, label: 'Xonalar' },
               { key: 'users', icon: <TeamOutlined />, label: 'Foydalanuvchilar' },
               { key: 'analytics', icon: <BarChartOutlined />, label: 'Statistika' }
             ]}
@@ -202,24 +236,64 @@ function App() {
                 { title: "Mas'ul", dataIndex: 'occupant', render: (o) => o || "-" },
                 { title: 'Vaqt', dataIndex: 'time', render: (t, r) => r.status==='occupied' ? `${t} da olindi` : "-" },
                 { title: 'Amal', render: (_, r) => r.status==='free' ? <Button type="primary" onClick={() => { setSelectedRoom(r.id); setModalOpen(true); }}>Band qilish</Button> : <Button danger onClick={() => receiveKey(r.id, r.occupant)}>Bo'shatish</Button> }
-              ]} dataSource={rooms.filter(r => String(r.id).includes(search) || (r.occupant && r.occupant.toLowerCase().includes(search)))} rowKey="id" pagination={false} /></div>
+              ]} dataSource={rooms.filter(r => String(r.id).includes(search) || (r.occupant && r.occupant.toLowerCase().includes(search)))} rowKey="id" pagination={{pageSize:10}} /></div>
             </>
           )}
 
+          {view === 'rooms_manage' && (
+            <Card className="glass-card" title={<span><ApartmentOutlined /> Xonalar boshqaruvi</span>}>
+              <Row gutter={24}>
+                <Col xs={24} md={10} style={{ borderRight: '1px solid #f1f5f9' }}>
+                  <h4 style={{marginBottom:16}}>Yakka qo'shish</h4>
+                  <Row gutter={8}>
+                    <Col span={16}><Input placeholder="Masalan: 101" size="large" value={newRoomId} onChange={e => setNewRoomId(e.target.value)} /></Col>
+                    <Col span={8}><Button type="primary" size="large" block onClick={addRoom}>Qoʻshish</Button></Col>
+                  </Row>
+                </Col>
+                <Col xs={24} md={14}>
+                  <h4 style={{marginBottom:16}}>Exceldan yuklash (.xlsx, .xls)</h4>
+                  <Upload beforeUpload={importRoomsExcel} showUploadList={false}>
+                    <Button size="large" icon={<UploadOutlined />} type="primary" ghost>Fayl tanlash (Excel)</Button>
+                  </Upload>
+                  <p style={{marginTop:12, color:'#64748b', fontSize:12}}>* Fayldagi ustun nomi <b>'Xona'</b> bo'lishi kerak.</p>
+                </Col>
+              </Row>
+              <Divider />
+              <Table dataSource={rooms} rowKey="id" columns={[
+                { title: 'Xona ID', dataIndex: 'id' },
+                { title: 'Holati', render: () => <Tag color="green">Tayyor</Tag> },
+                { title: 'Oʻchirish', render: (_, r) => <Popconfirm title="Xona oʻchirilsinmi?" onConfirm={() => deleteRoom(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm> }
+              ]} pagination={{pageSize:10}} />
+            </Card>
+          )}
+
           {view === 'users' && (
-            <Card className="glass-card" title={<span><UserAddOutlined /> Foydalanuvchi qo'shish</span>}>
-              <Row gutter={16}>
-                <Col xs={24} md={10}><Input placeholder="F.I.SH" size="large" value={newUserName} onChange={e => setNewUserName(e.target.value)} /></Col>
-                <Col xs={24} md={8}><Select size="large" style={{ width: '100%' }} value={newUserRole} onChange={setNewUserRole} options={[{label:'O\'qituvchi',value:'teacher'},{label:'Talaba',value:'student'},{label:'Hodim',value:'staff'}]} /></Col>
-                <Col xs={24} md={6}><Button type="primary" size="large" block onClick={addUser} icon={<UserAddOutlined />}>Qo'shish</Button></Col>
+            <Card className="glass-card" title={<span><TeamOutlined /> Foydalanuvchilar boshqaruvi</span>}>
+              <Row gutter={24}>
+                <Col xs={24} md={10} style={{ borderRight: '1px solid #f1f5f9' }}>
+                  <h4 style={{marginBottom:16}}>Yakka qo'shish</h4>
+                  <Input placeholder="F.I.SH" size="large" value={newUserName} onChange={e => setNewUserName(e.target.value)} style={{marginBottom:12}} />
+                  <Select size="large" style={{ width: '100%', marginBottom:12 }} value={newUserRole} onChange={setNewUserRole} options={[{label:'O\'qituvchi',value:'teacher'},{label:'Talaba',value:'student'},{label:'Hodim',value:'staff'}]} />
+                  <Button type="primary" size="large" block onClick={addUser} icon={<UserAddOutlined />}>Qo'shish</Button>
+                </Col>
+                <Col xs={24} md={14}>
+                  <h4 style={{marginBottom:16}}>Exceldan yuklash (.xlsx, .xls)</h4>
+                  <div style={{display:'flex', gap:12, alignItems:'center', marginBottom:12}}>
+                    <Select size="large" style={{ width: 140 }} value={newUserRole} onChange={setNewUserRole} options={[{label:'O\'qituvchi',value:'teacher'},{label:'Talaba',value:'student'},{label:'Hodim',value:'staff'}]} />
+                    <Upload beforeUpload={importUsersExcel} showUploadList={false}>
+                      <Button size="large" icon={<FileExcelOutlined />} type="primary" ghost>Fayl tanlash (Excel)</Button>
+                    </Upload>
+                  </div>
+                  <p style={{color:'#64748b', fontSize:12}}>* Fayldagi ustun nomi <b>'Ism'</b> yoki <b>'F.I.SH'</b> bo'lishi kerak.</p>
+                </Col>
               </Row>
               <Divider />
               <Table dataSource={users} rowKey="id" columns={[
                 { title: 'ID', dataIndex: 'id' },
                 { title: 'Ism-sharif', dataIndex: 'name' },
                 { title: 'Lavozimi', dataIndex: 'role', render: (r) => <Tag color="blue">{r==='teacher'?'O\'qituvchi':r==='student'?'Talaba':'Hodim'}</Tag> },
-                { title: 'Oʻchirish', render: (_, r) => <Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm> }
-              ]} />
+                { title: 'Amal', render: (_, r) => <Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm> }
+              ]} pagination={{pageSize:10}} />
             </Card>
           )}
 
@@ -231,7 +305,7 @@ function App() {
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><label>Tanlang</label><Button type="link" icon={<CameraOutlined />} onClick={() => setQrOpen(!qrOpen)}>QR</Button></div>
               {!qrOpen ? (
-                <Select showSearch size="large" style={{ width: '100%' }} placeholder="Ismni kiriting..." value={occupant} onChange={(val) => { setOccupant(val); if(val.includes('Talaba')) setRole('student'); else if(val.includes('Hodim')) setRole('staff'); else setRole('teacher'); }}
+                <Select showSearch size="large" style={{ width: '100%' }} placeholder="Tanlang..." value={occupant} onChange={(val) => { setOccupant(val); if(val.includes('Talaba')) setRole('student'); else if(val.includes('Hodim')) setRole('staff'); else setRole('teacher'); }}
                   options={users.map(u => ({ label: `${u.name} (${u.role==='teacher'?'O\'qituvchi':u.role==='student'?'Talaba':'Hodim'})`, value: `${u.name} (${u.role==='teacher'?'O\'qituvchi':u.role==='student'?'Talaba':'Hodim'})` }))}
                 />
               ) : <div className="qr-scanner-container"><QRScanner onScan={(id) => {
@@ -259,49 +333,31 @@ function QRScanner({ onScan }) {
 
 function AnalyticsDashboard({ analytics }) {
   const { totalLogs, roomUsage, userUsage, categoryUsage } = analytics;
-  
   return (
     <div className="animate-fade-in">
       <Row gutter={[20, 20]}>
-        <Col xs={24} md={6}>
-          <Card className="glass-card stat-card" style={{ borderLeft: '4px solid #1e40af' }}>
-            <Statistic title="Umumiy kalit olinishi" value={totalLogs} suffix="marta" />
-          </Card>
-        </Col>
+        <Col xs={24} md={6}><Card className="glass-card stat-card" style={{ borderLeft: '4px solid #1e40af' }}><Statistic title="Umumiy kalit olinishi" value={totalLogs} suffix="marta" /></Card></Col>
         {(categoryUsage || []).map((cat, i) => (
-          <Col xs={12} md={6} key={i}>
-            <Card className="glass-card stat-card">
-              <Statistic title={cat.name} value={cat.count} />
-              <Progress percent={totalLogs > 0 ? (cat.count / totalLogs) * 100 : 0} showInfo={false} size="small" strokeColor="#1e40af" />
-            </Card>
-          </Col>
+          <Col xs={12} md={6} key={i}><Card className="glass-card stat-card"><Statistic title={cat.name} value={cat.count} /><Progress percent={totalLogs > 0 ? (cat.count / totalLogs) * 100 : 0} showInfo={false} size="small" strokeColor="#1e40af" /></Card></Col>
         ))}
       </Row>
-
       <Row gutter={[20, 20]} style={{ marginTop: 24 }}>
         <Col xs={24} lg={12}>
           <Card className="glass-card" title={<span><KeyOutlined /> Eng faol xonalar (Top 5)</span>} extra={<TrophyOutlined style={{color:'#eab308'}} />}>
             {roomUsage.length > 0 ? roomUsage.slice(0, 5).map((item, i) => (
               <div key={item.id} style={{ marginBottom: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span>Xona {item.id}</span>
-                  <strong>{item.count} marta</strong>
-                </div>
-                <div style={{ height: 8, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ width: `${(item.count / (roomUsage[0]?.count || 1)) * 100}%`, height: '100%', background: '#3b82f6', borderRadius: 4, transition: 'width 0.5s ease-out' }} />
-                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Xona {item.id}</span><strong>{item.count} marta</strong></div>
+                <div style={{ height: 8, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}><div style={{ width: `${(item.count / (roomUsage[0]?.count || 1)) * 100}%`, height: '100%', background: '#3b82f6', borderRadius: 4, transition: 'width 0.5s ease-out' }} /></div>
               </div>
             )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           </Card>
         </Col>
-        
         <Col xs={24} lg={12}>
           <Card className="glass-card" title={<span><TeamOutlined /> Eng faol shaxslar (Top 5)</span>}>
             {userUsage.length > 0 ? userUsage.slice(0, 5).map((u, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#f8fafc', borderRadius: 12, marginBottom: 10, border: '1px solid #f1f5f9' }}>
                 <div style={{ width: 28, height: 28, background: i === 0 ? '#1e40af' : '#64748b', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 13 }}>{i + 1}</div>
-                <div style={{ flex: 1, fontWeight: 600 }}>{u.name}</div>
-                <Tag color="blue">{u.count} marta</Tag>
+                <div style={{ flex: 1, fontWeight: 600 }}>{u.name}</div><Tag color="blue">{u.count} marta</Tag>
               </div>
             )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           </Card>
