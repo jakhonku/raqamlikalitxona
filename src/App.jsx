@@ -389,35 +389,42 @@ function App() {
   );
 }
 
-// Separate component for QR Scanner logic
 function QRScanner({ onScan }) {
-  const scannerRef = useRef(null);
-
   useEffect(() => {
-    const html5QrCode = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    // High-level scanner is more stable for cross-browser
+    const scanner = new Html5QrcodeScanner(
+      "reader", 
+      { 
+        fps: 10, 
+        qrbox: { width: 250, height: 250 },
+        videoConstraints: { facingMode: "environment" }, // Orqa kamerani tanlash
+        rememberLastUsedCamera: true
+      }, 
+      false
+    );
 
-    html5QrCode.start(
-      { facingMode: "environment" }, 
-      config,
+    scanner.render(
       (decodedText) => {
-        html5QrCode.stop().then(() => {
+        scanner.clear().then(() => {
           onScan(decodedText);
         });
       },
-      (errorMessage) => { /* ignore */ }
-    ).catch(err => {
-      console.error("Kamera xatosi:", err);
-    });
+      (err) => { /* ignore repeated errors */ }
+    );
 
     return () => {
-      if (html5QrCode.isScanning) {
-        html5QrCode.stop().catch(err => console.error(err));
-      }
+      scanner.clear().catch(e => console.warn("Scanner clear failed", e));
     };
   }, [onScan]);
 
-  return <div id="reader" style={{ marginBottom: 15, borderRadius: 8, overflow: 'hidden' }}></div>;
+  return (
+    <div style={{ marginBottom: 15 }}>
+      <div id="reader" style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}></div>
+      <p style={{ fontSize: '11px', color: '#6b7280', textAlign: 'center', marginTop: 5 }}>
+        Kamera yoqilmoqda, iltimos ruxsat bering...
+      </p>
+    </div>
+  );
 }
 
 export default App;
