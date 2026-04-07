@@ -197,3 +197,16 @@ body {
   font-size: 12px !important;
   letter-spacing: 0.05em !important;
 }
+
+/* OVERDUE STYLE */
+.overdue-row {
+  background-color: #fef2f2 !important;
+}
+
+.overdue-row td {
+  color: #dc2626 !important;
+}
+
+.overdue-row:hover td {
+  background-color: #fee2e2 !important;
+}

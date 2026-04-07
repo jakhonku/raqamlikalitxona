@@ -11,7 +11,7 @@ import {
   CalendarOutlined, TrophyOutlined, PlusOutlined, ApartmentOutlined, 
   FileExcelOutlined, UploadOutlined, ArrowUpOutlined, ArrowDownOutlined,
   WarningOutlined, RestOutlined, HistoryOutlined, ClockCircleOutlined, LockOutlined, StopOutlined,
-  ScanOutlined, InfoCircleOutlined, StarFilled
+  ScanOutlined, InfoCircleOutlined, StarFilled, AlertOutlined
 } from '@ant-design/icons';
 import { Html5Qrcode } from 'html5-qrcode';
 import * as XLSX from 'xlsx';
@@ -35,18 +35,15 @@ function App() {
   const [actionLoading, setActionLoading] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [view, setView] = useState('list');
-  const [analytics, setAnalytics] = useState({ 
-    totalTaken: 0, totalReturned: 0, todayTaken: 0, todayReturned: 0,
-    roomUsage: [], idleRooms: []
-  });
+  const [analytics, setAnalytics] = useState({ todayTaken: 0, todayReturned: 0, roomUsage: [], idleRooms: [] });
 
   const [isBlocked, setIsBlocked] = useState(false);
-  const [daysSinceReset, setDaysSinceReset] = useState(0);
   const [newRoomId, setNewRoomId] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState('teacher');
   const [passModalOpen, setPassModalOpen] = useState(false);
   const [inputPass, setInputPass] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     checkDatabaseHealth();
@@ -54,10 +51,12 @@ function App() {
     const roomsSub = supabase.channel('rooms').on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => fetchRooms()).subscribe();
     const usersSub = supabase.channel('users').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchUsers()).subscribe();
     const logsSub = supabase.channel('logs').on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, () => fetchAnalytics()).subscribe();
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => {
       supabase.removeChannel(roomsSub);
       supabase.removeChannel(usersSub);
       supabase.removeChannel(logsSub);
+      clearInterval(timer);
     };
   }, []);
 
@@ -66,21 +65,15 @@ function App() {
       const { data } = await supabase.from('logs').select('created_at').order('created_at', { ascending: true }).limit(1);
       if (data && data.length > 0) {
         const diffDays = Math.floor((new Date() - new Date(data[0].created_at)) / (1000 * 60 * 60 * 24));
-        setDaysSinceReset(diffDays);
         if (diffDays >= 30) setIsBlocked(true);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {}
   };
 
   const clearLogs = async () => {
     if (inputPass !== 'joxa0130') return message.error("Parol xato!");
-    setActionLoading(true);
     const { error } = await supabase.from('logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    if (!error) {
-      message.success("Tozalandi!");
-      setIsBlocked(false); setPassModalOpen(false); setInputPass(''); fetchAnalytics();
-    }
-    setActionLoading(false);
+    if (!error) { message.success("Tozalandi!"); setIsBlocked(false); setPassModalOpen(false); setInputPass(''); fetchAnalytics(); }
   };
 
   const fetchInitialData = async () => {
@@ -100,32 +93,37 @@ function App() {
   };
 
   const fetchAnalytics = async () => {
-    const { data: allLogs, error } = await supabase.from('logs').select('*').order('created_at', { ascending: false });
-    if (error || !allLogs) return;
+    const { data: allLogs } = await supabase.from('logs').select('*').order('created_at', { ascending: false });
+    if (!allLogs) return;
     setLogs(allLogs);
     const todayStr = new Date().toISOString().split('T')[0];
-    let metrics = { todayTaken: 0, todayReturned: 0, rooms: {}, todayRoomsUsed: new Set() };
-    allLogs.forEach(log => {
-      const isToday = log.created_at?.startsWith(todayStr);
-      if (log.action === 'Olingan') {
-        if (isToday) { metrics.todayTaken++; metrics.todayRoomsUsed.add(log.room_id); }
-        metrics.rooms[log.room_id] = (metrics.rooms[log.room_id] || 0) + 1;
-      } else if (log.action === 'Qaytarildi') {
-        if (isToday) metrics.todayReturned++;
+    let metrics = { olingan: 0, qaytarilgan: 0, rooms: {}, todayUsed: new Set() };
+    allLogs.forEach(l => {
+      if (l.created_at.startsWith(todayStr)) {
+        if (l.action === 'Olingan') { metrics.olingan++; metrics.rooms[l.room_id] = (metrics.rooms[l.room_id] || 0) + 1; metrics.todayUsed.add(l.room_id); }
+        else metrics.qaytarilgan++;
       }
     });
-    const idle = rooms.filter(r => !metrics.todayRoomsUsed.has(String(r.id))).map(r => r.id);
     setAnalytics({
-      todayTaken: metrics.todayTaken, todayReturned: metrics.todayReturned,
-      roomUsage: Object.entries(metrics.rooms).map(([id, count]) => ({ id, count })).sort((a,b) => b.count - a.count),
-      idleRooms: idle
+      todayTaken: metrics.olingan, todayReturned: metrics.qaytarilgan,
+      roomUsage: Object.entries(metrics.rooms).map(([id,count]) => ({id,count})).sort((a,b)=>b.count-a.count),
+      idleRooms: rooms.filter(r => !metrics.todayUsed.has(String(r.id))).map(r => r.id)
     });
+  };
+
+  const isOverdue = (roomTime, roomDuration) => {
+    if (!roomTime || !roomDuration || roomDuration === '-') return false;
+    const [h, m] = roomTime.split(':').map(Number);
+    const durHours = parseInt(roomDuration);
+    const takeDate = new Date(); takeDate.setHours(h, m, 0, 0);
+    const expireDate = new Date(takeDate.getTime() + durHours * 60 * 60 * 1000);
+    return new Date() > expireDate;
   };
 
   const addUser = async () => {
     if (!newUserName.trim()) return message.warning("Ism!");
     let max = 1000;
-    users.forEach(u => { if (u.id.startsWith('RK-')) { const n = parseInt(u.id.split('-')[1]); if (!isNaN(n) && n > max) max = n; } });
+    users.forEach(u => { if (u.id.startsWith('RK-')) { const n = parseInt(u.id.split('-')[1]); if (n > max) max = n; } });
     await supabase.from('users').insert([{ id: `RK-${max + 1}`, name: newUserName.trim(), role: newUserRole }]);
     message.success("Qo'shildi!"); setNewUserName(''); fetchUsers();
   };
@@ -139,63 +137,55 @@ function App() {
   const deleteUser = async (id) => { await supabase.from('users').delete().eq('id', id); fetchUsers(); message.success("O'chirildi"); };
   const deleteRoom = async (id) => { await supabase.from('rooms').delete().eq('id', id); fetchRooms(); message.success("O'chirildi"); };
 
-  const importRoomsExcel = (file) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
+  const importRoomsExcel = (f) => {
+    const r = new FileReader();
+    r.onload = async (e) => {
       const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).Sheets[XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).SheetNames[0]]);
-      const ids = json.map(r => String(r[Object.keys(r).find(k => k.toLowerCase().includes('xona') || k.toLowerCase().includes('id'))] || '').trim()).filter(id => id);
+      const ids = json.map(row => String(row[Object.keys(row).find(k => k.toLowerCase().includes('xona') || k.toLowerCase().includes('id'))] || '').trim()).filter(id => id);
       await supabase.from('rooms').insert(ids.map(id => ({ id, status: 'free' })));
       message.success("Yuklandi!"); fetchRooms();
     };
-    reader.readAsArrayBuffer(file);
-    return false;
+    r.readAsArrayBuffer(f); return false;
   };
 
-  const importUsersExcel = (file) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
+  const importUsersExcel = (f) => {
+    const r = new FileReader();
+    r.onload = async (e) => {
       const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).Sheets[XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).SheetNames[0]]);
-      const names = json.map(r => String(r[Object.keys(r).find(k => k.toLowerCase().includes('ism') || k.toLowerCase().includes('fish'))] || '').trim()).filter(n => n);
-      let m = 1000;
-      users.forEach(u => { if (u.id.startsWith('RK-')) { const n = parseInt(u.id.split('-')[1]); if (n > m) m = n; } });
+      const names = json.map(row => String(row[Object.keys(row).find(k => k.toLowerCase().includes('ism') || k.toLowerCase().includes('fish'))] || '').trim()).filter(n => n);
+      let m = 1000; users.forEach(u => { if (u.id.startsWith('RK-')) { const n = parseInt(u.id.split('-')[1]); if (n > m) m = n; } });
       await supabase.from('users').insert(names.map((name, i) => ({ id: `RK-${m + i + 1}`, name, role: newUserRole })));
       message.success("Yuklandi!"); fetchUsers();
     };
-    reader.readAsArrayBuffer(file);
-    return false;
+    r.readAsArrayBuffer(f); return false;
   };
 
   const confirmIssue = async () => {
     if (!occupant || !selectedRoom) return;
     setActionLoading(true);
     const t = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
-    const durStr = (role === 'student' || occupant.includes('(Talaba)')) ? `${duration} soat` : '-';
+    const durStr = (occupant.includes('(Talaba)')) ? `${duration} soat` : '-';
     await supabase.from('rooms').update({ status: 'occupied', occupant, time: t, duration: durStr }).eq('id', selectedRoom);
     await supabase.from('logs').insert([{ room_id: String(selectedRoom), occupant_name: occupant, action: 'Olingan', duration: durStr }]);
     message.success("Kalit berildi!"); setModalOpen(false); setActionLoading(false);
   };
 
-  const receiveKey = async (roomId, currentOccupant) => {
-    Modal.confirm({ title: "Kalit qabul qilinsinmi?", onOk: async () => {
+  const receiveKey = async (roomId, o) => {
+    Modal.confirm({ title: "Qabul qilish?", onOk: async () => {
       await supabase.from('rooms').update({ status: 'free', occupant: null, time: null, duration: null }).eq('id', roomId);
-      await supabase.from('logs').insert([{ room_id: String(roomId), occupant_name: currentOccupant, action: 'Qaytarildi', duration: '-' }]);
+      await supabase.from('logs').insert([{ room_id: String(roomId), occupant_name: o, action: 'Qaytarildi', duration: '-' }]);
       message.success("Qabul qilindi!");
     }});
   };
 
   const handleQRScan = (id) => {
     const found = users.find(u => u.id === id);
-    if (found) {
-      const fullLabel = `${found.name} (${found.role==='teacher'?'O\'qituvchi':found.role==='student'?'Talaba':'Hodim'})`;
-      setOccupant(fullLabel);
-      setRole(found.role);
-      setQrOpen(false);
-      message.success(`${found.name} aniqlandi.`);
-    } else message.error("Topilmadi!");
+    if (found) { setOccupant(`${found.name} (${found.role==='teacher'?'O\'qituvchi':found.role==='student'?'Talaba':'Hodim'})`); setRole(found.role); setQrOpen(false); message.success(`${found.name} aniqlandi.`); }
+    else message.error("Topilmadi!");
   };
 
   if (isBlocked) {
-    return <Layout style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Result status="warning" title="Bazani tozalash muddati!" extra={<Button type="primary" danger onClick={() => setPassModalOpen(true)}>Tozalash</Button>} /></Layout>;
+    return <Layout style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Result status="warning" title="Bazani tozalash muddati!" extra={<Button type="primary" danger onClick={() => setPassModalOpen(true)}>Tozalash (joxa0130)</Button>} /></Layout>;
   }
 
   return (
@@ -211,11 +201,35 @@ function App() {
              <>
                <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
                  <Col xs={24} md={12}><Input size="large" placeholder="Qidirish..." prefix={<SearchOutlined />} value={search} onChange={(e) => setSearch(e.target.value.toLowerCase())} /></Col>
-                 <Col xs={24} md={12} style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                   <Button size="large" icon={<ReloadOutlined />} onClick={fetchInitialData} loading={loading} />
-                 </Col>
+                 <Col xs={24} md={12} style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}><Button size="large" icon={<ReloadOutlined />} onClick={fetchInitialData} loading={loading} /></Col>
                </Row>
-               <div className="glass-card table-glass"><Table columns={[{ title: 'Xona', dataIndex: 'id', width: '15%', render: (t) => <strong>{t}</strong> }, { title: 'Holati', dataIndex: 'status', width: '15%', render: (s) => <Tag color={s==='free'?'success':'error'}>{s==='free'?"BO'SH":"BAND"}</Tag> }, { title: "Mas'ul shaxs", dataIndex: 'occupant', width: '30%' }, { title: 'Vaqt', dataIndex: 'time', width: '20%', render: (t, r) => r.status==='occupied' ? `${t} da olindi` : "-" }, { title: 'Amal', width: '20%', render: (_, r) => r.status==='free' ? <Button type="primary" onClick={() => { setSelectedRoom(r.id); setModalOpen(true); setQrOpen(false); setOccupant(null); setRole('teacher'); }}>Band qilish</Button> : <Button danger onClick={() => receiveKey(r.id, r.occupant)}>Bo'shatish</Button> }]} dataSource={rooms.filter(r => String(r.id).includes(search) || (r.occupant && r.occupant.toLowerCase().includes(search)))} rowKey="id" pagination={{pageSize:10}} /></div>
+               <div className="glass-card table-glass">
+                 <Table dataSource={rooms.filter(r => String(r.id).includes(search) || (r.occupant && r.occupant.toLowerCase().includes(search)))} rowKey="id" pagination={{pageSize:10}} rowClassName={(r) => r.status === 'occupied' && isOverdue(r.time, r.duration) ? 'overdue-row' : ''} columns={[
+                   { title: 'Xona', dataIndex: 'id', width: '10%', render: (t) => <strong>{t}</strong> },
+                   { title: 'Holati', dataIndex: 'status', width: '10%', render: (s) => s==='free' ? <Tag color="success">BO'SH</Tag> : <Badge status="error" text="BAND" /> },
+                   { title: "Mas'ul shaxs", dataIndex: 'occupant', width: '30%' },
+                   { title: 'Vaqt / Muddat', width: '30%', render: (_, r) => {
+                     if (r.status !== 'occupied') return "-";
+                     const [h, m] = r.time.split(':').map(Number);
+                     const freeTime = r.duration !== '-' ? new Date(new Date().setHours(h + parseInt(r.duration), m, 0, 0)) : null;
+                     const freeTimeStr = freeTime ? `${String(freeTime.getHours()).padStart(2, '0')}:${String(freeTime.getMinutes()).padStart(2, '0')}` : null;
+                     
+                     return (
+                       <div style={{fontSize: 13}}>
+                         <div><ClockCircleOutlined /> <strong>{r.time}</strong> da olindi</div>
+                         {r.duration !== '-' && (
+                           <div style={{marginTop:4, color: isOverdue(r.time, r.duration) ? '#dc2626' : '#1e40af'}}>
+                             <CalendarOutlined /> Topshirish: <strong>{freeTimeStr}</strong> ({r.duration})
+                             {isOverdue(r.time, r.duration) && <Tag color="error" style={{marginLeft:8}}>KECHIKDI!</Tag>}
+                           </div>
+                         )}
+                         {r.duration === '-' && <div style={{marginTop:4, color: '#64748b'}}><InfoCircleOutlined /> Cheksiz muddat</div>}
+                       </div>
+                     );
+                   }},
+                   { title: 'Amal', width: '20%', render: (_, r) => r.status==='free' ? <Button type="primary" onClick={() => { setSelectedRoom(r.id); setModalOpen(true); setQrOpen(false); setOccupant(null); }}>Band qilish</Button> : <Button danger onClick={() => receiveKey(r.id, r.occupant)}>Bo'shatish</Button> }
+                 ]} />
+               </div>
              </>
           )}
 
@@ -242,25 +256,17 @@ function App() {
         <Modal title={qrOpen ? "QR Skaner" : `Xona ${selectedRoom} — Band qilish`} open={modalOpen} onCancel={() => setModalOpen(false)} footer={null} destroyOnClose>
             {!qrOpen ? (
               <div style={{marginTop:10}}>
-                <div style={{display:'flex', justifyContent:'space-between', marginBottom:12, alignItems:'center'}}>
-                  <label style={{fontWeight:500}}>Tanlang</label>
-                  <Button type="link" icon={<CameraOutlined />} onClick={() => setQrOpen(true)}>QR</Button>
-                </div>
-                <Select showSearch size="large" style={{ width: '100%', marginBottom: 16 }} placeholder="Shaxsni tanlang..." value={occupant} onChange={(val) => { setOccupant(val); if(val.includes('Talaba')) setRole('student'); else setRole('staff'); }} options={users.map(u => ({ label: `${u.name} (${u.role==='teacher'?'O\'qituvchi':u.role==='student'?'Talaba':'Hodim'})`, value: `${u.name} (${u.role==='teacher'?'O\'qituvchi':u.role==='student'?'Talaba':'Hodim'})` }))} />
-                {(role === 'student' || (occupant && occupant.includes('(Talaba)'))) && (
-                  <div style={{marginBottom:16}}>
-                    <label style={{display:'block', marginBottom:8}}>Qancha vaqtga? (soat)</label>
-                    <InputNumber min={1} max={24} size="large" value={duration} onChange={setDuration} style={{ width: '100%' }} />
-                  </div>
-                )}
-                <Button type="primary" size="large" block loading={actionLoading} onClick={confirmIssue} style={{height:45, borderRadius:10, fontWeight:600}}>Tasdiqlash</Button>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:12, alignItems:'center'}}><label style={{fontWeight:500}}>Tanlang</label><Button type="link" icon={<CameraOutlined />} onClick={() => setQrOpen(true)}>QR</Button></div>
+                <Select showSearch size="large" style={{ width: '100%', marginBottom: 16 }} placeholder="Tanlang..." value={occupant} onChange={(val) => { setOccupant(val); if(val.includes('Talaba')) setRole('student'); else setRole('staff'); }} options={users.map(u => ({ label: `${u.name} (${u.role==='teacher'?'O\'qituvchi':u.role==='student'?'Talaba':'Hodim'})`, value: `${u.name} (${u.role==='teacher'?'O\'qituvchi':u.role==='student'?'Talaba':'Hodim'})` }))} />
+                {(role === 'student' || (occupant && occupant.includes('(Talaba)'))) && <div style={{marginBottom:16}}><label style={{display:'block', marginBottom:8}}>Muddati (soat)</label><InputNumber min={1} max={24} size="large" value={duration} onChange={setDuration} style={{ width: '100%' }} /></div>}
+                <Button type="primary" size="large" block loading={actionLoading} onClick={confirmIssue} style={{height:45, borderRadius:10}}>Tasdiqlash</Button>
               </div>
             ) : (
               <div className="qr-scanner-container"><QRScanner onScan={handleQRScan} /><Button block onClick={() => setQrOpen(false)} style={{marginTop:10}}>Orqaga</Button></div>
             )}
         </Modal>
 
-        <Modal title="Xavfsizlik paroli" open={passModalOpen} onCancel={() => setPassModalOpen(false)} onOk={clearLogs} okText="Tozalash"><Input.Password value={inputPass} onChange={e => setInputPass(e.target.value)} /></Modal>
+        <Modal title="Parol" open={passModalOpen} onCancel={() => setPassModalOpen(false)} onOk={clearLogs} okText="Tozalash"><Input.Password value={inputPass} onChange={e => setInputPass(e.target.value)} /></Modal>
       </Layout>
     </ConfigProvider>
   );
