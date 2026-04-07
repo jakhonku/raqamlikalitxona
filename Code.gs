@@ -194,29 +194,31 @@ function getUsersList() {
 function getAnalytics() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const logsSheet = ss.getSheetByName('Loglar');
-  if (!logsSheet) return { roomUsage: [], dailyUsage: [], userUsage: [] };
+  if (!logsSheet) return { roomUsage: [], dailyUsage: [], userUsage: [], categoryUsage: [] };
   
   const data = logsSheet.getDataRange().getValues();
   let roomUsage = {};
   let dailyUsage = {};
   let userUsage = {};
+  let categoryUsage = { "O'qituvchi": 0, "Talaba": 0, "Hodim": 0 };
   
   for (let i = 1; i < data.length; i++) {
     const roomId = data[i][0].toString();
     const occupant = data[i][1].toString();
-    const action = data[i][2]; // 'Olingan (Check-out)'
-    const dateStr = data[i][3].toString(); // yyyy-MM-dd ...
+    const action = data[i][2]; 
+    const dateStr = data[i][3].toString();
     
     if (action && action.toString().includes('Olingan')) {
-      // Room count
       roomUsage[roomId] = (roomUsage[roomId] || 0) + 1;
-      
-      // User count
       userUsage[occupant] = (userUsage[occupant] || 0) + 1;
       
-      // Daily count
+      // Category detection
+      if (occupant.includes('(O\'qituvchi)')) categoryUsage["O'qituvchi"]++;
+      else if (occupant.includes('(Talaba)')) categoryUsage["Talaba"]++;
+      else if (occupant.includes('(Hodim)')) categoryUsage["Hodim"]++;
+
       if (dateStr) {
-        const day = dateStr.split(' ')[0]; // Take only yyyy-MM-dd
+        const day = dateStr.split(' ')[0];
         dailyUsage[day] = (dailyUsage[day] || 0) + 1;
       }
     }
@@ -225,7 +227,8 @@ function getAnalytics() {
   return {
     roomUsage: Object.keys(roomUsage).map(id => ({ id: id, count: roomUsage[id] })),
     dailyUsage: Object.keys(dailyUsage).map(day => ({ date: day, count: dailyUsage[day] })),
-    userUsage: Object.keys(userUsage).map(name => ({ name: name, count: userUsage[name] }))
+    userUsage: Object.keys(userUsage).map(name => ({ name: name, count: userUsage[name] })),
+    categoryUsage: Object.keys(categoryUsage).map(cat => ({ name: cat, count: categoryUsage[cat] }))
   };
 }
 

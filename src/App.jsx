@@ -506,7 +506,16 @@ function AnalyticsDashboard({ analytics }) {
         </div>
       </div>
 
-      <div className="analytics-grid">
+      <div className="category-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 15, marginTop: 25 }}>
+        {(analytics?.categoryUsage || []).map((cat) => (
+          <div key={cat.name} className="analytics-card" style={{ flexDirection: 'column', textAlign: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 13, color: '#6b7280' }}>{cat.name}lar</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)' }}>{cat.count}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="analytics-grid" style={{ marginTop: 25 }}>
         <div className="chart-section">
           <h3>📊 Eng faol xonalar (Top 5)</h3>
           <div className="bar-chart">
