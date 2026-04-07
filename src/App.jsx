@@ -12,7 +12,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import './index.css';
 
 const { Header, Content } = Layout;
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzQK4Gp0Dfo4WAqmRIma7vjEM8ARGGHiGvotHndMmcKMebX_CAaXtg1_tOpWFpYxARHqQ/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxTPqJSPUeM6LmRt2GMlQJioTO8xzqFZyLR3jXOylcT_6_zEr9nL1WpieiSm_4GQaBATw/exec";
 
 function App() {
   const [rooms, setRooms] = useState([]);
@@ -478,4 +478,3 @@ function AnalyticsDashboard({ analytics }) {
 }
 
 export default App;
-
