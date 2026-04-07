@@ -4,7 +4,7 @@ import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import './index.css';
 
 // TODO: Replace this with your Google Apps Script Web App URL after deploying Code.gs
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxUWKoVEqCOyLElJGAmY0DW6_r9a7Fyc3LtBlRdaBHAcAFqUOiYplf0flVbAgRsSZ8Z/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbx0sF0HuDnV0aGnALAgQE_5Vfsbc2sHkAMlbYY7hsGXyGdyGichrgxGeu1fr3lwEWDUQQ/exec";
 
 function App() {
   const [rooms, setRooms] = useState([]);
@@ -237,118 +237,118 @@ function App() {
         ) : (
           <>
             <div className="controls">
-          <div className="search-box">
-            <Search className="search-icon" size={18} />
-            <input
-              type="text"
-              placeholder="Xona yoki xodim/talabani qidirish..."
-              value={search}
-              onChange={handleSearch}
-              className="search-input"
-            />
-          </div>
-          <div className="stats">
-            <div className="stat">
-              <div className="dot free"></div> Bo'sh: {freeCount}
+              <div className="search-box">
+                <Search className="search-icon" size={18} />
+                <input
+                  type="text"
+                  placeholder="Xona yoki xodim/talabani qidirish..."
+                  value={search}
+                  onChange={handleSearch}
+                  className="search-input"
+                />
+              </div>
+              <div className="stats">
+                <div className="stat">
+                  <div className="dot free"></div> Bo'sh: {freeCount}
+                </div>
+                <div className="stat">
+                  <div className="dot occupied"></div> Band: {occupiedCount}
+                </div>
+              </div>
             </div>
-            <div className="stat">
-              <div className="dot occupied"></div> Band: {occupiedCount}
-            </div>
-          </div>
-        </div>
 
-        {loading ? (
-          <div className="loader-container">
-            <div className="spinner"></div>
-            <p>Ma'lumotlar yuklanmoqda...</p>
-          </div>
-        ) : filteredRooms.length === 0 ? (
-          <div className="loader-container">
-            <Info size={32} style={{ marginBottom: 10, color: 'var(--text-muted)' }} />
-            <p>Xonalar topilmadi.</p>
-          </div>
-        ) : (
-          <div className="table-container">
-            <table className="rooms-table">
-              <thead>
-                <tr>
-                  <th>Xona</th>
-                  <th>Holat</th>
-                  <th>Mas'ul shaxs</th>
-                  <th>Vaqti / Muddati</th>
-                  <th>Amal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRooms.map((room) => {
-                  const isFree = room.status === 'free';
-                  let overdueEl = null;
+            {loading ? (
+              <div className="loader-container">
+                <div className="spinner"></div>
+                <p>Ma'lumotlar yuklanmoqda...</p>
+              </div>
+            ) : filteredRooms.length === 0 ? (
+              <div className="loader-container">
+                <Info size={32} style={{ marginBottom: 10, color: 'var(--text-muted)' }} />
+                <p>Xonalar topilmadi.</p>
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="rooms-table">
+                  <thead>
+                    <tr>
+                      <th>Xona</th>
+                      <th>Holat</th>
+                      <th>Mas'ul shaxs</th>
+                      <th>Vaqti / Muddati</th>
+                      <th>Amal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRooms.map((room) => {
+                      const isFree = room.status === 'free';
+                      let overdueEl = null;
 
-                  if (!isFree && room.duration) {
-                    const durMatch = String(room.duration).match(/(\d+)/);
-                    if (durMatch && room.time) {
-                      const durHours = parseInt(durMatch[1], 10);
-                      const parts = String(room.time).split(':');
-                      if (parts.length >= 2) {
-                        const hh = parseInt(parts[0], 10);
-                        const mm = parseInt(parts[1], 10);
+                      if (!isFree && room.duration) {
+                        const durMatch = String(room.duration).match(/(\d+)/);
+                        if (durMatch && room.time) {
+                          const durHours = parseInt(durMatch[1], 10);
+                          const parts = String(room.time).split(':');
+                          if (parts.length >= 2) {
+                            const hh = parseInt(parts[0], 10);
+                            const mm = parseInt(parts[1], 10);
 
-                        const now = new Date();
-                        let issueTime = new Date();
-                        issueTime.setHours(hh, mm, 0, 0);
+                            const now = new Date();
+                            let issueTime = new Date();
+                            issueTime.setHours(hh, mm, 0, 0);
 
-                        if (issueTime > now) {
-                          issueTime.setDate(issueTime.getDate() - 1);
-                        }
+                            if (issueTime > now) {
+                              issueTime.setDate(issueTime.getDate() - 1);
+                            }
 
-                        const dueTime = new Date(issueTime.getTime() + durHours * 60 * 60 * 1000);
+                            const dueTime = new Date(issueTime.getTime() + durHours * 60 * 60 * 1000);
 
-                        if (now > dueTime) {
-                          const diffMins = Math.floor((now - dueTime) / 60000);
-                          const oHr = Math.floor(diffMins / 60);
-                          const oMin = diffMins % 60;
-                          const msg = oHr > 0 ? `${oHr}s ${oMin}m kechikdi!` : `${oMin}m kechikdi!`;
-                          overdueEl = <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: 600, marginTop: 4 }}>⚠️ {msg}</div>;
-                        } else {
-                          overdueEl = <div style={{ color: '#6b7280', fontSize: '12px', marginTop: 2 }}>Muddati: {room.duration}</div>;
+                            if (now > dueTime) {
+                              const diffMins = Math.floor((now - dueTime) / 60000);
+                              const oHr = Math.floor(diffMins / 60);
+                              const oMin = diffMins % 60;
+                              const msg = oHr > 0 ? `${oHr}s ${oMin}m kechikdi!` : `${oMin}m kechikdi!`;
+                              overdueEl = <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: 600, marginTop: 4 }}>⚠️ {msg}</div>;
+                            } else {
+                              overdueEl = <div style={{ color: '#6b7280', fontSize: '12px', marginTop: 2 }}>Muddati: {room.duration}</div>;
+                            }
+                          }
                         }
                       }
-                    }
-                  }
 
-                  return (
-                    <tr key={room.id} className={isFree ? 'row-free' : 'row-occupied'}>
-                      <td className="col-room">{room.id}</td>
-                      <td>
-                        <span className={`badge ${isFree ? 'free' : 'occupied'}`}>
-                          {isFree ? "Bo'sh" : 'Band'}
-                        </span>
-                      </td>
-                      <td className="col-occupant">{isFree ? <span className="dimmed">-</span> : <span className="occupant-name">{room.occupant}</span>}</td>
-                      <td>
-                        {isFree ? <span className="dimmed">-</span> : (
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span className="occupant-time">{room.time} da band qilindi</span>
-                            {overdueEl}
-                          </div>
-                        )}
-                      </td>
-                      <td className="col-action">
-                        {isFree ? (
-                          <button className="btn-sm btn-primary" onClick={() => openModal(room.id)}>Band qilish</button>
-                        ) : (
-                          <button className="btn-sm btn-outline" onClick={() => receiveKey(room.id)}>Bo'shatish</button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      return (
+                        <tr key={room.id} className={isFree ? 'row-free' : 'row-occupied'}>
+                          <td className="col-room">{room.id}</td>
+                          <td>
+                            <span className={`badge ${isFree ? 'free' : 'occupied'}`}>
+                              {isFree ? "Bo'sh" : 'Band'}
+                            </span>
+                          </td>
+                          <td className="col-occupant">{isFree ? <span className="dimmed">-</span> : <span className="occupant-name">{room.occupant}</span>}</td>
+                          <td>
+                            {isFree ? <span className="dimmed">-</span> : (
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span className="occupant-time">{room.time} da band qilindi</span>
+                                {overdueEl}
+                              </div>
+                            )}
+                          </td>
+                          <td className="col-action">
+                            {isFree ? (
+                              <button className="btn-sm btn-primary" onClick={() => openModal(room.id)}>Band qilish</button>
+                            ) : (
+                              <button className="btn-sm btn-outline" onClick={() => receiveKey(room.id)}>Bo'shatish</button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
-      </>
-    )}
       </main>
 
       {modalOpen && (
@@ -358,8 +358,8 @@ function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div className="room-id-circle">{selectedRoom}</div>
                 <div>
-                   <h2 style={{ fontSize: '18px', lineHeight: 1 }}>Xonani band qilish</h2>
-                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 4 }}>Barcha ma'lumotlarni tekshiring</p>
+                  <h2 style={{ fontSize: '18px', lineHeight: 1 }}>Xonani band qilish</h2>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 4 }}>Barcha ma'lumotlarni tekshiring</p>
                 </div>
               </div>
               <button onClick={closeBtn} className="icon-btn"><X size={24} /></button>
@@ -439,14 +439,14 @@ function App() {
 function QRScanner({ onScan }) {
   useEffect(() => {
     const html5QrCode = new Html5Qrcode("reader");
-    
+
     const startScanner = async () => {
       try {
         await html5QrCode.start(
           { facingMode: "environment" },
           { fps: 20, qrbox: { width: 220, height: 220 } },
           (decodedText) => {
-            html5QrCode.stop().then(() => onScan(decodedText)).catch(() => {});
+            html5QrCode.stop().then(() => onScan(decodedText)).catch(() => { });
           },
           undefined
         );
@@ -456,7 +456,7 @@ function QRScanner({ onScan }) {
           { facingMode: "user" },
           { fps: 20, qrbox: { width: 220, height: 220 } },
           (decodedText) => {
-            html5QrCode.stop().then(() => onScan(decodedText)).catch(() => {});
+            html5QrCode.stop().then(() => onScan(decodedText)).catch(() => { });
           },
           undefined
         ).catch(innerErr => console.error("Scanner error", innerErr));
