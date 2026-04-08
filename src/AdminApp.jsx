@@ -57,6 +57,7 @@ export default function AdminApp({ onLogout }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [view, setView] = useState('list');
+  const [roomFilter, setRoomFilter] = useState('all'); // 'all', 'occupied', 'free'
   const [analytics, setAnalytics] = useState({ todayTaken: 0, todayReturned: 0, roomUsage: [], idleRooms: [] });
 
   const [isBlocked, setIsBlocked] = useState(false);
@@ -210,7 +211,18 @@ export default function AdminApp({ onLogout }) {
       <Header className="header-glass admin-header" style={{ height: 'auto', minHeight: 70, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px', flexWrap: 'wrap', gap: '10px' }}>
         <div className="brand-title"><DashboardOutlined /> Raqamli Kalitxona</div>
         <div className="header-nav-wrap" style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Menu mode="horizontal" selectedKeys={[view]} onClick={(e) => setView(e.key)} style={{ border: 'none', background: 'transparent' }} items={[{ key: 'list', icon: <KeyOutlined />, label: 'Kalitlar' }, { key: 'rooms_manage', icon: <ApartmentOutlined />, label: 'Xonalar' }, { key: 'users', icon: <TeamOutlined />, label: 'Foydalanuvchilar' }, { key: 'analytics', icon: <BarChartOutlined />, label: 'Statistika' }]} />
+          <Menu 
+            mode="horizontal" 
+            selectedKeys={[view]} 
+            onClick={(e) => setView(e.key)} 
+            style={{ border: 'none', background: 'transparent' }} 
+            items={[
+              { key: 'list', icon: <KeyOutlined />, label: 'Kalitlar' },
+              { key: 'rooms_manage', icon: <ApartmentOutlined />, label: 'Xonalar' }, 
+              { key: 'users', icon: <TeamOutlined />, label: 'Foydalanuvchilar' }, 
+              { key: 'analytics', icon: <BarChartOutlined />, label: 'Statistika' }
+            ]} 
+          />
           <Button danger icon={<LogoutOutlined />} onClick={onLogout}>Chiqish</Button>
         </div>
       </Header>
@@ -237,14 +249,32 @@ export default function AdminApp({ onLogout }) {
                     style={{ width: '100%' }}
                   />
                 </Col>
-                <Col flex="120px">
-                  <Button size="large" icon={<ReloadOutlined />} onClick={fetchInitialData} loading={loading} type="primary" ghost block>Yangilash</Button>
+                <Col>
+                  <Radio.Group value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)} buttonStyle="solid" size="large">
+                    <Radio.Button value="all">Barchasi</Radio.Button>
+                    <Radio.Button value="occupied">Band</Radio.Button>
+                    <Radio.Button value="free">Bo'sh</Radio.Button>
+                  </Radio.Group>
+                </Col>
+                <Col>
+                  <Button size="large" icon={<ReloadOutlined />} onClick={fetchInitialData} loading={loading} type="primary" ghost>Yangilash</Button>
                 </Col>
               </Row>
             </div>
 
             <div className="glass-card table-glass">
-            <Table scroll={{ x: 700 }} dataSource={rooms.filter(r => String(r.id).includes(search) || (r.occupant && r.occupant.toLowerCase().includes(search)))} rowKey="id" pagination={{ pageSize: 12 }} rowClassName={(r) => r.status === 'occupied' && isOverdue(r.time, r.duration) ? 'overdue-row' : ''} columns={[
+            <Table 
+              scroll={{ x: 700 }} 
+              dataSource={rooms
+                .filter(r => {
+                  const matchesSearch = String(r.id).includes(search) || (r.occupant && r.occupant.toLowerCase().includes(search));
+                  if (roomFilter === 'occupied') return r.status === 'occupied' && matchesSearch;
+                  if (roomFilter === 'free') return r.status === 'free' && matchesSearch;
+                  return matchesSearch;
+                })
+              } 
+              rowKey="id" 
+pagination={{ pageSize: 12 }} rowClassName={(r) => r.status === 'occupied' && isOverdue(r.time, r.duration) ? 'overdue-row' : ''} columns={[
               { title: 'Xona', dataIndex: 'id', width: 100, render: (t) => <strong>{t}</strong> },
               { title: 'Holati', dataIndex: 'status', width: 120, render: (s) => s === 'free' ? <Tag color="success">BO'SH</Tag> : <Badge status="error" text="BAND" /> },
               { title: "Mas'ul shaxs", dataIndex: 'occupant' },
