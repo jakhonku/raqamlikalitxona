@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminApp from './AdminApp';
-import StudentApp from './StudentApp';
-import { ConfigProvider, theme, Layout, Card, Input, Button, Typography, message, Segmented } from 'antd';
-import { SafetyCertificateOutlined, UserOutlined, LockOutlined, ArrowRightOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
+import { ConfigProvider, Layout, Card, Input, Button, Typography, message } from 'antd';
+import { SafetyCertificateOutlined, UserOutlined, LockOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { supabase } from './supabaseClient';
 
 const { Title, Text } = Typography;
@@ -27,29 +26,15 @@ export default function App() {
 
   const handleLogin = async (id, pass) => {
     setLoading(true);
-    if (loginType === 'Talaba') {
-      const { data, error } = await supabase.from('users').select('*').eq('id', id.trim()).eq('password', pass.trim()).single();
-      if (data) {
-        setRole('student');
-        setUser(data);
-        setIsLoggedIn(true);
-        localStorage.setItem('app_auth', JSON.stringify({ role: 'student', user: data }));
-        message.success("Xush kelibsiz!");
-      } else {
-        message.error("ID yoki parol noto'g'ri!");
-      }
+    const { data } = await supabase.from('admin_config').select('*').eq('username', id.trim()).eq('password', pass.trim()).single();
+    if (data) {
+      setRole('admin');
+      setUser({ name: 'Admin' });
+      setIsLoggedIn(true);
+      localStorage.setItem('app_auth', JSON.stringify({ role: 'admin', user: { name: 'Admin' } }));
+      message.success("Admin panelga xush kelibsiz!");
     } else {
-      // Admin login logic
-      const { data } = await supabase.from('admin_config').select('*').eq('username', id.trim()).eq('password', pass.trim()).single();
-      if (data) {
-        setRole('admin');
-        setUser({ name: 'Admin' });
-        setIsLoggedIn(true);
-        localStorage.setItem('app_auth', JSON.stringify({ role: 'admin', user: { name: 'Admin' } }));
-        message.success("Admin panelga xush kelibsiz!");
-      } else {
-        message.error("Admin login yoki paroli noto'g'ri!");
-      }
+      message.error("Admin login yoki paroli noto'g'ri!");
     }
     setLoading(false);
   };
@@ -90,11 +75,7 @@ export default function App() {
 
   return (
     <ConfigProvider theme={{ token: { fontFamily: "'Outfit', sans-serif" } }}>
-      {role === 'admin' ? (
-        <AdminApp onLogout={handleLogout} />
-      ) : (
-        <StudentApp user={user} onLogout={handleLogout} />
-      )}
+      <AdminApp onLogout={handleLogout} />
     </ConfigProvider>
   );
 }
