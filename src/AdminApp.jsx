@@ -76,11 +76,24 @@ export default function AdminApp({ onLogout }) {
 
   useEffect(() => {
     checkDatabaseHealth();
+    
+    // 1. Ma'lumotlarni bazadan o'qib olish
     fetchInitialData();
-    const roomsSub = supabase.channel('rooms').on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => fetchRooms()).subscribe();
-    const usersSub = supabase.channel('users').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchUsers()).subscribe();
-    const logsSub = supabase.channel('logs').on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, () => fetchAnalytics()).subscribe();
+    
+    // 2. Real-vaqtda o'zgarishlarni kuzatish (Xonalar)
+    const roomsSub = supabase
+      .channel('admin_rooms')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
+        fetchRooms(); // Har safar bazada o'zgarish bo'lsa, ro'yxatni yangilaydi
+      })
+      .subscribe();
+
+    // Foydalanuvchilar va Loglar uchun real-vaqt kuzatuvi
+    const usersSub = supabase.channel('admin_users').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchUsers()).subscribe();
+    const logsSub = supabase.channel('admin_logs').on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, () => fetchAnalytics()).subscribe();
+    
     const timer = setInterval(() => setCurrentTime(new Date()), 1000); 
+    
     return () => {
       supabase.removeChannel(roomsSub);
       supabase.removeChannel(usersSub);
@@ -109,7 +122,11 @@ export default function AdminApp({ onLogout }) {
 
   const fetchRooms = async () => {
     const { data } = await supabase.from('rooms').select('*').order('id', { ascending: true });
-    if (data) { setRooms(data); return data; }
+    if (data) { 
+      setRooms(data); 
+      fetchAnalytics(data); 
+      return data; 
+    }
     return [];
   };
 
