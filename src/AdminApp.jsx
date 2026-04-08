@@ -136,14 +136,17 @@ export default function AdminApp({ onLogout }) {
     });
   };
 
-  const isOverdue = (roomTime, roomDuration) => {
-    if (!roomTime || !roomDuration || roomDuration === '-') return false;
+  const getTimes = (roomTime, roomDuration) => {
+    if (!roomTime || !roomDuration || roomDuration === '-') return { start: roomTime, end: '-', isOverdue: false };
     const [h, m] = roomTime.split(':').map(Number);
     const durHours = parseFloat(roomDuration);
     const takeDate = new Date(); takeDate.setHours(h, m, 0, 0);
     const expireDate = new Date(takeDate.getTime() + durHours * 60 * 60 * 1000);
-    return new Date() > expireDate;
+    const endStr = expireDate.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return { start: roomTime, end: endStr, isOverdue: new Date() > expireDate };
   };
+
+  const isOverdue = (roomTime, roomDuration) => getTimes(roomTime, roomDuration).isOverdue;
 
   const addUser = async () => {
     if (!newUserName.trim()) return message.warning("Ism!");
@@ -214,31 +217,148 @@ export default function AdminApp({ onLogout }) {
 
       <Content className="main-container animate-fade-in">
         {view === 'list' && (
-          <div className="glass-card table-glass">
-            <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-              <Col xs={24} md={12}><Input size="large" placeholder="Qidirish raqam yoki ism..." prefix={<SearchOutlined />} value={search} onChange={(e) => setSearch(e.target.value.toLowerCase())} /></Col>
-              <Col xs={24} md={12} style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}><Button size="large" icon={<ReloadOutlined />} onClick={fetchInitialData} loading={loading} /></Col>
-            </Row>
+          <>
+            <div style={{ 
+              position: 'sticky', 
+              top: 70, 
+              zIndex: 10, 
+              background: '#f8fafc', 
+              padding: '10px 0',
+              marginBottom: 10
+            }}>
+              <Row gutter={[16, 16]} align="middle">
+                <Col flex="auto">
+                  <Input 
+                    size="large" 
+                    placeholder="Qidirish: raqam yoki ism..." 
+                    prefix={<SearchOutlined />} 
+                    value={search} 
+                    onChange={(e) => setSearch(e.target.value.toLowerCase())} 
+                    style={{ width: '100%' }}
+                  />
+                </Col>
+                <Col flex="120px">
+                  <Button size="large" icon={<ReloadOutlined />} onClick={fetchInitialData} loading={loading} type="primary" ghost block>Yangilash</Button>
+                </Col>
+              </Row>
+            </div>
+
+            <div className="glass-card table-glass">
             <Table scroll={{ x: 700 }} dataSource={rooms.filter(r => String(r.id).includes(search) || (r.occupant && r.occupant.toLowerCase().includes(search)))} rowKey="id" pagination={{ pageSize: 12 }} rowClassName={(r) => r.status === 'occupied' && isOverdue(r.time, r.duration) ? 'overdue-row' : ''} columns={[
-              { title: 'Xona', dataIndex: 'id', width: 80, render: (t) => <strong>{t}</strong> },
-              { title: 'Holati', dataIndex: 'status', width: 100, render: (s) => s === 'free' ? <Tag color="success">BO'SH</Tag> : <Badge status="error" text="BAND" /> },
-              { title: "Mas'ul shaxs", dataIndex: 'occupant', ellipsis: true },
-              { title: 'Vaqt / Muddat', width: 120, render: (_, r) => r.status === 'occupied' ? <Space direction="vertical" size={0}><Text strong style={{ color: isOverdue(r.time, r.duration) ? '#dc2626' : 'inherit' }}>{r.time}</Text><Text type="secondary" size="small">{r.duration}</Text></Space> : '-' },
+              { title: 'Xona', dataIndex: 'id', width: 100, render: (t) => <strong>{t}</strong> },
+              { title: 'Holati', dataIndex: 'status', width: 120, render: (s) => s === 'free' ? <Tag color="success">BO'SH</Tag> : <Badge status="error" text="BAND" /> },
+              { title: "Mas'ul shaxs", dataIndex: 'occupant' },
+              { title: 'Vaqt / Qaytarish', width: 160, render: (_, r) => {
+                const times = getTimes(r.time, r.duration);
+                return r.status === 'occupied' ? (
+                  <Space direction="vertical" size={0}>
+                    <Text size="small" type="secondary">Olingan: {times.start}</Text>
+                    <Text strong style={{ color: times.isOverdue ? '#dc2626' : '#1e40af' }}>
+                      Qaytarish: {times.end}
+                    </Text>
+                    {times.isOverdue && <Badge status="error" text="Muddati o'tdi!" className="animate-pulse" />}
+                  </Space>
+                ) : '-';
+              }},
               { title: 'Boshqaruv', width: 140, render: (_, r) => r.status === 'free' ? <Button type="primary" block size="small" onClick={() => { setSelectedRoom(r.id); setModalOpen(true); }}>Kalit berish</Button> : <Button danger ghost block size="small" onClick={() => receiveKey(r.id, r.occupant)}>Qabul qilish</Button> }
             ]} />
-          </div>
+            </div>
+          </>
         )}
 
         {view === 'rooms_manage' && (
           <Card className="glass-card" title="Xonalar boshqaruvi">
-            <Row gutter={24}><Col xs={24} md={12}><h4>Yakka qo'shish</h4><Row gutter={8} style={{ marginTop: 12 }}><Col span={16}><Input placeholder="Xona raqami" size="large" value={newRoomId} onChange={e => setNewRoomId(e.target.value)} /></Col><Col span={8}><Button type="primary" size="large" block onClick={addRoom}>Qo'shish</Button></Col></Row></Col><Col xs={24} md={12}><h4>Excel yuklash</h4><Upload beforeUpload={(f) => { const r = new FileReader(); r.onload = async (e) => { const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).Sheets[XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).SheetNames[0]]); const ids = json.map(row => String(row[Object.keys(row).find(k => k.toLowerCase().includes('xona') || k.toLowerCase().includes('id'))] || '').trim()).filter(id => id); await supabase.from('rooms').insert(ids.map(id => ({ id, status: 'free' }))); message.success("Yuklandi!"); fetchRooms(); }; r.readAsArrayBuffer(f); return false; }} showUploadList={false} style={{ marginTop: 12 }}><Button size="large" icon={<UploadOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></Col></Row>
+            <Row gutter={24}><Col xs={24} md={12}><h4>Yakka qo'shish</h4><Row gutter={8} style={{ marginTop: 12 }}><Col span={16}><Input placeholder="Xona raqami" size="large" value={newRoomId} onChange={e => setNewRoomId(e.target.value)} /></Col><Col span={8}><Button type="primary" size="large" block onClick={addRoom}>Qo'shish</Button></Col></Row></Col>            <Col xs={24} md={12}><h4>Excel yuklash</h4><Upload beforeUpload={(f) => { 
+  const reader = new FileReader(); 
+  reader.onload = async (ev) => { 
+    try {
+      const data = new Uint8Array(ev.target.result);
+      const workbook = XLSX.read(data, { type: 'array' }); 
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet); 
+      
+      const ids = json.map(row => String(row[Object.keys(row).find(k => k.toLowerCase().includes('xona') || k.toLowerCase().includes('id'))] || '').trim()).filter(id => id); 
+      
+      if (ids.length === 0) {
+        message.error("Excel faylida xona raqamlari topilmadi! Ustun nomi 'Xona' yoki 'ID' bo'lishi kerak.");
+        return;
+      }
+
+      const { error } = await supabase.from('rooms').insert(ids.map(id => ({ id, status: 'free' }))); 
+      if (error) throw error;
+
+      message.success(`${ids.length} ta xona muvaffaqiyatli qo'shildi!`); 
+      fetchRooms(); 
+    } catch (err) {
+      console.error(err);
+      message.error("Xonalarni yuklashda xatolik yuz berdi!");
+    }
+  }; 
+  reader.readAsArrayBuffer(f); 
+  return false; 
+}} showUploadList={false} style={{ marginTop: 12 }}><Button size="large" icon={<UploadOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></Col></Row>
             <Divider /><Table scroll={{ x: 600 }} dataSource={rooms} rowKey="id" columns={[{ title: 'Xona raqami', dataIndex: 'id' }, { title: 'Boshqaruv', render: (_, r) => <Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteRoom(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm> }]} pagination={{ pageSize: 10 }} />
           </Card>
         )}
 
         {view === 'users' && (
           <Card className="glass-card" title="Foydalanuvchilar boshqaruvi">
-            <Row gutter={24}><Col xs={24} md={12}><h4>Yakka qo'shish</h4><div style={{ marginTop: 12 }}><Input placeholder="F.I.SH" size="large" value={newUserName} onChange={e => setNewUserName(e.target.value)} style={{ marginBottom: 10 }} /><Input.Password placeholder="Parol" size="large" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} style={{ marginBottom: 10 }} /><Select size="large" style={{ width: '100%', marginBottom: 10 }} value={newUserRole} onChange={setNewUserRole} options={[{ label: 'Oqituvchi', value: 'teacher' }, { label: 'Talaba', value: 'student' }, { label: 'Hodim', value: 'staff' }]} /><Button type="primary" size="large" block onClick={addUser}>Qo'shish</Button></div></Col><Col xs={24} md={12}><h4>Excel yuklash</h4><div style={{ marginTop: 12 }}><Select size="large" style={{ width: 150, marginRight: 10 }} value={newUserRole} onChange={setNewUserRole} options={[{ label: 'Oqituvchi', value: 'teacher' }, { label: 'Talaba', value: 'student' }, { label: 'Hodim', value: 'staff' }]} /><Upload beforeUpload={(f) => { const r = new FileReader(); r.onload = async (e) => { const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' }); const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]); const items = json.map(row => ({ name: String(row[Object.keys(row).find(k => k.toLowerCase().includes('ism') || k.toLowerCase().includes('fish'))] || '').trim(), password: String(row[Object.keys(row).find(k => k.toLowerCase().includes('parol') || k.toLowerCase().includes('pass'))] || '').trim() })).filter(i => i.name); let m = 1000; users.forEach(u => { if (u.id && u.id.startsWith('RK-')) { const n = parseInt(u.id.split('-')[1]); if (!isNaN(n) && n > m) m = n; } }); await supabase.from('users').insert(items.map((item, i) => ({ id: `RK-${m + i + 1}`, name: item.name, password: item.password, role: newUserRole }))); message.success("Yuklandi!"); fetchUsers(); }; r.readAsArrayBuffer(f); return false; }} showUploadList={false}><Button size="large" icon={<FileExcelOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></div></Col></Row>
+            <Row gutter={24}><Col xs={24} md={12}><h4>Yakka qo'shish</h4><div style={{ marginTop: 12 }}><Input placeholder="F.I.SH" size="large" value={newUserName} onChange={e => setNewUserName(e.target.value)} style={{ marginBottom: 10 }} /><Input.Password placeholder="Parol" size="large" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} style={{ marginBottom: 10 }} /><Select size="large" style={{ width: '100%', marginBottom: 10 }} value={newUserRole} onChange={setNewUserRole} options={[{ label: 'Oqituvchi', value: 'teacher' }, { label: 'Talaba', value: 'student' }, { label: 'Hodim', value: 'staff' }]} /><Button type="primary" size="large" block onClick={addUser}>Qo'shish</Button></div></Col><Col xs={24} md={12}><h4>Excel yuklash</h4><div style={{ marginTop: 12 }}><Select size="large" style={{ width: 150, marginRight: 10 }} value={newUserRole} onChange={setNewUserRole} options={[{ label: 'Oqituvchi', value: 'teacher' }, { label: 'Talaba', value: 'student' }, { label: 'Hodim', value: 'staff' }]} /><Upload beforeUpload={(f) => { 
+  const reader = new FileReader(); 
+  reader.onload = async (e) => { 
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' }); 
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet); 
+      
+      const items = json.map(row => {
+        const name = String(row[Object.keys(row).find(k => k.toUpperCase().includes('F.I.SH'))] || '').trim();
+        const password = String(row[Object.keys(row).find(k => k.toUpperCase().includes('PAROL') || k.toUpperCase().includes('PASS'))] || '').trim();
+        const lavozimRaw = String(row[Object.keys(row).find(k => k.toUpperCase().includes('LAVOZIM'))] || '').toLowerCase();
+        
+        let role = newUserRole; // Default from dropdown
+        if (lavozimRaw.includes('o\'qituvchi') || lavozimRaw.includes('o`qituvchi') || lavozimRaw.includes('oqituvchi')) role = 'teacher';
+        else if (lavozimRaw.includes('talaba')) role = 'student';
+        else if (lavozimRaw.includes('hodim') || lavozimRaw.includes('xodim')) role = 'staff';
+
+        return { name, password, role };
+      }).filter(i => i.name && i.password); 
+
+      if (items.length === 0) {
+        message.error("Excel faylida ma'lumot topilmadi yoki ustun nomlari xato (F.I.SH, Parol va Lavozim bo'lishi kerak)!");
+        return;
+      }
+
+      let m = 1000; 
+      users.forEach(u => { 
+        if (u.id && u.id.startsWith('RK-')) { 
+          const n = parseInt(u.id.split('-')[1]); 
+          if (!isNaN(n) && n > m) m = n; 
+        } 
+      }); 
+
+      const { error } = await supabase.from('users').insert(items.map((item, i) => ({ 
+        id: `RK-${m + i + 1}`, 
+        name: item.name, 
+        password: item.password, 
+        role: item.role 
+      }))); 
+
+      if (error) throw error;
+
+      message.success(`${items.length} ta foydalanuvchi yuklandi!`); 
+      fetchUsers(); 
+    } catch (err) {
+      console.error(err);
+      message.error("Vay yuklashda xatolik yuz berdi!");
+    }
+  }; 
+  reader.readAsArrayBuffer(f); 
+  return false; 
+}} showUploadList={false}><Button size="large" icon={<FileExcelOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></div></Col></Row>
             <Divider /><Table scroll={{ x: 800 }} dataSource={users} rowKey="id" columns={[{ title: 'ID', dataIndex: 'id', width: '15%', render: (id) => <Tag color="blue"><strong>{id}</strong></Tag> }, { title: 'F.I.SH', dataIndex: 'name' }, { title: 'Parol', dataIndex: 'password', render: (p) => p ? <Input.Password value={p} readOnly bordered={false} /> : '-' }, { title: 'Lavozimi', dataIndex: 'role', render: (r) => <Tag color={r === 'teacher' ? 'gold' : r === 'student' ? 'cyan' : 'purple'}>{r === 'teacher' ? 'O\'qituvchi' : r === 'student' ? 'Talaba' : 'Hodim'}</Tag> }, { title: 'Boshqaruv', width: '15%', render: (_, r) => <Space><Button icon={<EditOutlined />} onClick={() => { setEditingUser(r); setEditPassword(r.password || ''); setEditModalOpen(true); }} /><Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm></Space> }]} pagination={{ pageSize: 12 }} />
           </Card>
         )}

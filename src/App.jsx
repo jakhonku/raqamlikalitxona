@@ -12,7 +12,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
-  const [loginType, setLoginType] = useState('Talaba'); // Toggle between Student and Admin login
+  const [loginType, setLoginType] = useState('Admin'); // Always Admin now
 
   // Persistence check
   useEffect(() => {
@@ -76,20 +76,10 @@ export default function App() {
             <div style={{ marginBottom: 30 }}>
               <SafetyCertificateOutlined style={{ fontSize: 40, color: '#1e40af', marginBottom: 10 }} />
               <Title level={2} style={{ margin: 0 }}>Raqamli Kalitxona</Title>
-              <Text type="secondary">Tizimga kirish uchun turini tanlang</Text>
+              <Text type="secondary">Admin panelga kirish</Text>
             </div>
 
-            <Segmented
-              block
-              size="large"
-              value={loginType}
-              onChange={setLoginType}
-              options={[
-                { label: 'Talaba', value: 'Talaba', icon: <TeamOutlined /> },
-                { label: 'Admin', value: 'Admin', icon: <SettingOutlined /> }
-              ]}
-              style={{ marginBottom: 24, background: '#f1f5f9' }}
-            />
+            <div style={{ marginBottom: 24 }}></div>
 
             <LoginForm onLogin={handleLogin} loading={loading} type={loginType} />
           </Card>
@@ -118,7 +108,7 @@ function LoginForm({ onLogin, loading, type }) {
       <Input 
         size="large" 
         prefix={<UserOutlined />} 
-        placeholder={type === 'Talaba' ? "RK-1001" : "Admin login"} 
+        placeholder="Admin login" 
         value={id} 
         onChange={e => setId(e.target.value)}
         style={{ marginBottom: 16 }}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Layout, Card, Input, Button, Row, Col, Typography, 
   message, Tag, Modal, Space, Badge, ConfigProvider,
-  Spin, Empty, Result
+  Spin, Empty, Result, InputNumber
 } from 'antd';
 import { 
   UserOutlined, 
@@ -53,11 +53,11 @@ export default function StudentApp({ user, onLogout }) {
       occupant: user.name,
       occupant_id: user.id,
       time: new Date().toLocaleTimeString('uz-UZ', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false }),
-      duration: '2 soat'
+      duration: `${duration} soat`
     }).eq('id', selectedRoom.id);
 
     if (!error) {
-      await supabase.from('logs').insert({ room_id: selectedRoom.id, occupant: user.name, action: 'Olingan', duration: '2 soat' });
+      await supabase.from('logs').insert({ room_id: selectedRoom.id, occupant: user.name, action: 'Olingan', duration: `${duration} soat` });
       message.success("Xona 2 soatga band qilindi!");
       fetchRooms();
       setSelectedRoom(null);
@@ -156,7 +156,21 @@ export default function StudentApp({ user, onLogout }) {
         <Result
           icon={<CalendarOutlined style={{ color: '#1e40af' }} />}
           title={`Xona ${selectedRoom?.id} ni band qilmoqchimisiz?`}
-          subTitle="Xona 2 soat muddatga sizga beriladi. Bu vaqt ichida boshqa xonani band qila olmaysiz."
+          subTitle={
+            <div style={{ marginTop: 20 }}>
+              <div style={{ marginBottom: 10 }}>Necha soatga band qilasiz? (max 2 soat)</div>
+              <InputNumber 
+                min={0.5} 
+                max={2} 
+                step={0.5} 
+                value={duration} 
+                onChange={setDuration} 
+                style={{ width: 120 }}
+                addonAfter="soat"
+              />
+              <div style={{ marginTop: 10, fontSize: 13, color: '#94a3b8' }}>30 daqiqadan 2 soatgacha tanlash mumkin</div>
+            </div>
+          }
         />
       </Modal>
     </Layout>

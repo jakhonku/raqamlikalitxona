@@ -28,9 +28,8 @@ body {
 
 .main-container {
   width: 100%;
-  max-width: 1400px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 16px 24px;
   box-sizing: border-box;
 }
 
@@ -182,6 +181,15 @@ body {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
 }
 
 /* TABLE STYLE */
