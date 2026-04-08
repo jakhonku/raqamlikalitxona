@@ -68,6 +68,8 @@ export default function AdminApp({ onLogout }) {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editPassword, setEditPassword] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState('');
   const [passModalOpen, setPassModalOpen] = useState(false);
   const [inputPass, setInputPass] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -120,7 +122,11 @@ export default function AdminApp({ onLogout }) {
     const activeRooms = roomsList || rooms;
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' });
     const { data: allLogs } = await supabase.from('logs').select('*').order('created_at', { ascending: false });
-    if (!allLogs) return;
+    if (!allLogs) {
+      setLogs([]);
+      setAnalytics({ todayTaken: 0, todayReturned: 0, roomUsage: [], idleRooms: activeRooms.map(r => r.id) });
+      return;
+    }
     setLogs(allLogs);
     let metrics = { olingan: 0, qaytarilgan: 0, rooms: {}, todayUsed: new Set() };
     allLogs.forEach(l => {
@@ -135,6 +141,30 @@ export default function AdminApp({ onLogout }) {
       roomUsage: Object.entries(metrics.rooms).map(([id, count]) => ({ id, count })).sort((a, b) => b.count - a.count),
       idleRooms: activeRooms.filter(r => !metrics.todayUsed.has(String(r.id))).map(r => r.id)
     });
+  };
+
+  const clearLogs = async () => {
+    try {
+      // 1. Get current admin password from DB
+      const { data: adminData } = await supabase.from('admin_config').select('password').single();
+      
+      if (!adminData || inputPass !== adminData.password) {
+        message.error("Xato parol!");
+        return;
+      }
+
+      // 2. Perform deletion
+      const { error } = await supabase.from('logs').delete().not('id', 'is', null);
+      if (error) throw error;
+      
+      message.success("Tarix tozalandi!");
+      setPassModalOpen(false);
+      setInputPass('');
+      fetchInitialData();
+    } catch (err) {
+      console.error(err);
+      message.error("Tozalashda xatolik!");
+    }
   };
 
   const getTimes = (roomTime, roomDuration) => {
@@ -166,7 +196,11 @@ export default function AdminApp({ onLogout }) {
   const deleteUser = async (id) => { await supabase.from('users').delete().eq('id', id); fetchUsers(); message.success("O'chirildi"); };
   const updateUser = async () => {
     if (!editingUser) return;
-    await supabase.from('users').update({ password: editPassword }).eq('id', editingUser.id);
+    await supabase.from('users').update({ 
+      name: editName.trim(), 
+      password: editPassword.trim(),
+      role: editRole 
+    }).eq('id', editingUser.id);
     message.success("Yangilandi!"); setEditModalOpen(false); fetchUsers();
   };
   const deleteRoom = async (id) => { await supabase.from('rooms').delete().eq('id', id); fetchRooms(); message.success("O'chirildi"); };
@@ -399,7 +433,13 @@ pagination={{ pageSize: 12 }} rowClassName={(r) => r.status === 'occupied' && is
                 { title: 'F.I.SH', dataIndex: 'name' }, 
                 { title: 'Parol', dataIndex: 'password', width: 70, render: (p) => p ? <Input.Password value={p} readOnly bordered={false} size="small" visibilityToggle={false} style={{ width: 60 }} /> : '-' }, 
                 { title: 'Lavozimi', dataIndex: 'role', width: 120, render: (r) => <Tag color={r === 'teacher' ? 'gold' : r === 'student' ? 'cyan' : 'purple'} style={{ margin: 0 }}>{r === 'teacher' ? 'O\'qituvchi' : r === 'student' ? 'Talaba' : 'Hodim'}</Tag> }, 
-                { title: 'Boshqaruv', width: 90, fixed: 'right', render: (_, r) => <Space size="small"><Button size="small" icon={<EditOutlined />} onClick={() => { setEditingUser(r); setEditPassword(r.password || ''); setEditModalOpen(true); }} /><Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button size="small" danger icon={<DeleteOutlined />} /></Popconfirm></Space> }
+                { title: 'Boshqaruv', width: 90, fixed: 'right', render: (_, r) => <Space size="small"><Button size="small" icon={<EditOutlined />} onClick={() => { 
+                  setEditingUser(r); 
+                  setEditName(r.name || '');
+                  setEditPassword(r.password || '');
+                  setEditRole(r.role || 'teacher');
+                  setEditModalOpen(true); 
+                }} /><Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button size="small" danger icon={<DeleteOutlined />} /></Popconfirm></Space> }
               ]} 
               pagination={{ pageSize: 12 }} 
             />
@@ -413,7 +453,21 @@ pagination={{ pageSize: 12 }} rowClassName={(r) => r.status === 'occupied' && is
               <Col xs={12} lg={6}><Card className="glass-card stat-card"><Statistic title="Bugun qaytarilgan" value={analytics.todayReturned} prefix={<ArrowDownOutlined />} valueStyle={{ color: '#1e40af' }} /></Card></Col>
               <Col xs={24} lg={12}><Card className="glass-card stat-card"><Title level={5} style={{ margin: 0, marginBottom: 10 }}>Foydalanilmagan xonalar ({analytics.idleRooms.length})</Title><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{analytics.idleRooms.length > 0 ? analytics.idleRooms.map(id => <Tag key={id} color="default">{id}</Tag>) : <Text type="secondary">Barchasi ishlatildi</Text>}</div></Card></Col>
             </Row>
-            <Card className="glass-card" style={{ marginTop: 16 }} title="Xonalar harakati tarixi">
+            <Card 
+              className="glass-card" 
+              style={{ marginTop: 16 }} 
+              title="Xonalar harakati tarixi"
+              extra={
+                <Button 
+                  danger 
+                  icon={<DeleteOutlined />} 
+                  size="small" 
+                  onClick={() => setPassModalOpen(true)}
+                >
+                  Tarixni tozalash
+                </Button>
+              }
+            >
               <Collapse accordion className="glass-card history-collapse" expandIconPosition="end">
                 {rooms.map(room => {
                   const roomLogs = logs.filter(l => String(l.room_id) === String(room.id));
@@ -444,8 +498,39 @@ pagination={{ pageSize: 12 }} rowClassName={(r) => r.status === 'occupied' && is
       </Modal>
 
       <Modal title="Ma'lumotlarni tahrirlash" open={editModalOpen} onOk={updateUser} onCancel={() => setEditModalOpen(false)} okText="Saqlash">
-        <Text type="secondary">Foydalanuvchi: {editingUser?.name}</Text>
-        <Input.Password style={{ marginTop: 15 }} placeholder="Yangi parol" value={editPassword} onChange={e => setEditPassword(e.target.value)} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+          <div>
+            <Text type="secondary">F.I.SH:</Text>
+            <Input placeholder="F.I.SH" value={editName} onChange={e => setEditName(e.target.value)} style={{ marginTop: 5 }} />
+          </div>
+          <div>
+            <Text type="secondary">Parol:</Text>
+            <Input.Password placeholder="Yangi parol" value={editPassword} onChange={e => setEditPassword(e.target.value)} style={{ marginTop: 5 }} />
+          </div>
+          <div>
+            <Text type="secondary">Lavozimi:</Text>
+            <Select style={{ width: '100%', marginTop: 5 }} value={editRole} onChange={setEditRole} options={[{ label: 'Oqituvchi', value: 'teacher' }, { label: 'Talaba', value: 'student' }, { label: 'Hodim', value: 'staff' }]} />
+          </div>
+        </div>
+      </Modal>
+      <Modal 
+        title="Baza tarixini tozalash" 
+        open={passModalOpen} 
+        onOk={clearLogs} 
+        onCancel={() => { setPassModalOpen(false); setInputPass(''); }} 
+        okText="Tasdiqlash"
+        okButtonProps={{ danger: true }}
+      >
+        <div style={{ padding: '10px 0' }}>
+          <Text strong>Diqqat!</Text> Barcha tarixiy ma'lumotlar butunlay o'chib ketadi.
+          <Input.Password 
+            placeholder="Tozalash parolini kiriting" 
+            value={inputPass} 
+            onChange={e => setInputPass(e.target.value)} 
+            style={{ marginTop: 15 }} 
+            size="large"
+          />
+        </div>
       </Modal>
     </Layout>
   );
