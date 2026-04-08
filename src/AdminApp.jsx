@@ -389,7 +389,20 @@ pagination={{ pageSize: 12 }} rowClassName={(r) => r.status === 'occupied' && is
   reader.readAsArrayBuffer(f); 
   return false; 
 }} showUploadList={false}><Button size="large" icon={<FileExcelOutlined />} type="primary" ghost>Fayl tanlash</Button></Upload></div></Col></Row>
-            <Divider /><Table scroll={{ x: 800 }} dataSource={users} rowKey="id" columns={[{ title: 'ID', dataIndex: 'id', width: '15%', render: (id) => <Tag color="blue"><strong>{id}</strong></Tag> }, { title: 'F.I.SH', dataIndex: 'name' }, { title: 'Parol', dataIndex: 'password', render: (p) => p ? <Input.Password value={p} readOnly bordered={false} /> : '-' }, { title: 'Lavozimi', dataIndex: 'role', render: (r) => <Tag color={r === 'teacher' ? 'gold' : r === 'student' ? 'cyan' : 'purple'}>{r === 'teacher' ? 'O\'qituvchi' : r === 'student' ? 'Talaba' : 'Hodim'}</Tag> }, { title: 'Boshqaruv', width: '15%', render: (_, r) => <Space><Button icon={<EditOutlined />} onClick={() => { setEditingUser(r); setEditPassword(r.password || ''); setEditModalOpen(true); }} /><Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button danger icon={<DeleteOutlined />} /></Popconfirm></Space> }]} pagination={{ pageSize: 12 }} />
+            <Divider />
+            <Table 
+              scroll={{ x: 'max-content' }} 
+              dataSource={users} 
+              rowKey="id" 
+              columns={[
+                { title: 'ID', dataIndex: 'id', width: 80, render: (id) => <Tag color="blue" style={{ margin: 0 }}><strong>{id}</strong></Tag> }, 
+                { title: 'F.I.SH', dataIndex: 'name' }, 
+                { title: 'Parol', dataIndex: 'password', width: 70, render: (p) => p ? <Input.Password value={p} readOnly bordered={false} size="small" visibilityToggle={false} style={{ width: 60 }} /> : '-' }, 
+                { title: 'Lavozimi', dataIndex: 'role', width: 120, render: (r) => <Tag color={r === 'teacher' ? 'gold' : r === 'student' ? 'cyan' : 'purple'} style={{ margin: 0 }}>{r === 'teacher' ? 'O\'qituvchi' : r === 'student' ? 'Talaba' : 'Hodim'}</Tag> }, 
+                { title: 'Boshqaruv', width: 90, fixed: 'right', render: (_, r) => <Space size="small"><Button size="small" icon={<EditOutlined />} onClick={() => { setEditingUser(r); setEditPassword(r.password || ''); setEditModalOpen(true); }} /><Popconfirm title="Oʻchirilsinmi?" onConfirm={() => deleteUser(r.id)}><Button size="small" danger icon={<DeleteOutlined />} /></Popconfirm></Space> }
+              ]} 
+              pagination={{ pageSize: 12 }} 
+            />
           </Card>
         )}
 
